@@ -27,7 +27,7 @@ The app requires the following environment variables:
 - APPLICATION_ID: the ID of the bot. For the bot to work, you need to create a bot in the discord developer portal, once
   the bot is created you can copy the application ID and bot token.
 - BOT_TOKEN: you can get the bot token by clicking `Reset Token` on the bot page of the discord developer portal.
-- ALERT_CHANNEL_ID:
+- ALERT_CHANNEL_ID: specify which channel to send alerts to
 
 These can be set in a `.env` or by using the `export` command.
 
