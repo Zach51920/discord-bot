@@ -8,10 +8,6 @@ func main() {
 		panic("failed to create bot: " + err.Error())
 	}
 
-	if err = bot.RegisterHandlers(); err != nil {
-		panic("failed to register handlers: " + err.Error())
-	}
-
 	if err = bot.Run(); err != nil {
 		panic("failed to run bot: " + err.Error())
 	}

@@ -16,8 +16,8 @@ import (
 )
 
 type Bot struct {
-	youtube youtube.Client
-	session *discordgo.Session
+	ytClient youtube.Client
+	session  *discordgo.Session
 
 	wg     *sync.WaitGroup
 	config *config
@@ -38,14 +38,13 @@ func New() (Bot, error) {
 
 	sess, err := discordgo.New("Bot " + cfg.Token)
 	if err != nil {
-		return Bot{}, fmt.Errorf("failed to create youpirate: %w", err)
+		return Bot{}, fmt.Errorf("failed to create bot: %w", err)
 	}
-
 	return Bot{
-		youtube: youtube.Client{},
-		session: sess,
-		config:  &cfg,
-		wg:      &sync.WaitGroup{},
+		ytClient: youtube.Client{},
+		session:  sess,
+		config:   &cfg,
+		wg:       &sync.WaitGroup{},
 	}, nil
 }
 
@@ -66,8 +65,12 @@ func (b *Bot) Run() error {
 
 // Start opens a new bot session.
 func (b *Bot) Start() error {
+	if err := b.RegisterCommands(); err != nil {
+		return fmt.Errorf("failed to register commands: %w", err)
+	}
+
 	if err := b.session.Open(); err != nil {
-		return err
+		return fmt.Errorf("failed to start session: %w", err)
 	}
 	log.Println("bot started...")
 	return nil
@@ -91,20 +94,6 @@ func (b *Bot) Stop() {
 	}
 }
 
-// sendAlert sends an alert to the alert channel
-func (b *Bot) sendAlert(alert string) {
-	log.Println("[ALERT]:", alert)
-
-	b.wg.Add(1)
-	defer b.wg.Done()
-
-	b.session.Lock()
-	defer b.session.Unlock()
-	if _, err := b.session.ChannelMessageSend(b.config.AlertChannelID, alert); err != nil {
-		log.Println("[WARNING] failed to write alert:", err)
-	}
-}
-
 func loadConfig() (config, error) {
 	_ = godotenv.Load(".env")
 	cfg := config{
@@ -114,7 +103,7 @@ func loadConfig() (config, error) {
 		AlertChannelID: os.Getenv("ALERT_CHANNEL_ID"),
 	}
 	b, _ := json.Marshal(cfg)
-	fmt.Println("config:", string(b))
+	log.Println("config: " + string(b))
 
 	return cfg, nil
 }

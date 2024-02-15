@@ -33,7 +33,7 @@ These can be set in a `.env` or by using the `export` command.
 
 ## Deployment
 
-- Using the [Docker Image](https://hub.docker.com/repository/docker/zachsampson/youpirate/general):
+- Using the [Docker Image](https://hub.docker.com/repository/docker/zachsampson/discord-bot/general):
     - With a .env file
         ```bash
         docker run --name media-bot --env-file=.env zachsampson/discord-media-bot:latest
