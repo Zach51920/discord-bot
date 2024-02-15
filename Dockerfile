@@ -2,6 +2,8 @@ FROM alpine:latest
 
 WORKDIR /app
 
-COPY ./bin/youpirate .
+COPY ./bin/discord-bot .
 
-CMD ["./youpirate"]
+RUN chmod +x ./discord-bot
+
+CMD ["./discord-bot"]

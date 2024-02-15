@@ -24,13 +24,13 @@ jobs:
           go mod download
 
       - name: Build Binary
-        run: env GOOS=linux CGO_ENABLED=0 go build -o ./bin/youpirate .
+        run: env GOOS=linux CGO_ENABLED=0 go build -o ./bin/discord-bot .
 
       - name: Archive Binary
         uses: actions/upload-artifact@v2
         with:
-          name: youpirate
-          path: ./bin/youpirate
+          name: discord-bot
+          path: ./bin/discord-bot
 
   deploy:
     needs: build
@@ -45,13 +45,13 @@ jobs:
       - name: Load Binary Artifact
         uses: actions/download-artifact@v2
         with:
-          name: youpirate
-          path: ./bin/youpirate
+          name: discord-bot
+          path: ./bin/discord-bot
 
       - name: Build Docker Image
-        run: docker build --progress=plain -t zachsampson/youpirate:latest .
+        run: docker build --progress=plain -t zachsampson/discord-bot:latest .
 
       - name: Publish Docker Image
         run: |
           docker login -u zachsampson -p ${{ secrets.DOCKER_HUB_TOKEN }}
-          docker push zachsampson/youpirate:latest
+          docker push zachsampson/discord-bot:latest
