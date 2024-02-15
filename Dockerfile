@@ -1,9 +1,15 @@
+FROM golang:1.21-alpine AS Build
+
+WORKDIR /app
+
+COPY . .
+
+RUN go build -o discord-bot .
+
 FROM alpine:latest
 
 WORKDIR /app
 
-COPY ./bin/discord-bot .
+COPY --from=Build /app/discord-bot .
 
-RUN chmod +x ./discord-bot
-
-CMD ["./discord-bot"]
+CMD [ "./discord-bot" ]

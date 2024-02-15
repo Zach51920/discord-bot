@@ -1,0 +1,36 @@
+name: Upload Artifact
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  upload-artifact:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21.x'
+      - name: Install Dependencies
+        run: |
+          go mod tidy
+          go mod download
+      - name: Build Binary
+        run: env GOOS=linux CGO_ENABLED=0 go build -o ./bin/discord-bot .
+      - name: Archive Binary
+        uses: actions/upload-artifact@v2
+        with:
+          name: discord-bot
+          path: ./bin/discord-bot
+
+#   To load the artifact:
+#      - name: Load Binary Artifact
+#        uses: actions/download-artifact@v2
+#        with:
+#          name: discord-bot
+#          path: ./bin/discord-bot
