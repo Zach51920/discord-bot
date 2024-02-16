@@ -26,6 +26,8 @@ func (b *Bot) commandHandler(s *discordgo.Session, i *discordgo.InteractionCreat
 		b.handleNotImplemented(s, i)
 	case "listen":
 		b.handleNotImplemented(s, i)
+	case "say":
+		b.handleNotImplemented(s, i)
 	default:
 		b.handleUnknownCommand(s, i)
 	}

@@ -43,6 +43,18 @@ func (b *Bot) RegisterCommands() error {
 				},
 			},
 		},
+		{
+			Name:        "say",
+			Description: "BETA | Read a message to all the current members in the voice chat.",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "msg",
+					Description: "Message to convert to speech",
+					Required:    true,
+				},
+			},
+		},
 	}
 	if _, err := b.session.ApplicationCommandBulkOverwrite(b.config.ApplicationID, b.config.GuildID, commands); err != nil {
 		return fmt.Errorf("bulk overwrite failed: %w", err)
