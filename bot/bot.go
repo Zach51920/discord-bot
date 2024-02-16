@@ -1,6 +1,7 @@
 package bot
 
 import (
+	tts "cloud.google.com/go/texttospeech/apiv1"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -16,8 +17,9 @@ import (
 )
 
 type Bot struct {
-	ytClient youtube.Client
-	session  *discordgo.Session
+	ttsClient *tts.Client
+	ytClient  youtube.Client
+	session   *discordgo.Session
 
 	wg     *sync.WaitGroup
 	config *config
@@ -36,15 +38,21 @@ func New() (Bot, error) {
 		return Bot{}, fmt.Errorf("failed to read config: %w", err)
 	}
 
+	ttsClient, err := tts.NewClient(context.Background())
+	if err != nil {
+		return Bot{}, fmt.Errorf("failed to create tts client: %w", err)
+	}
+
 	sess, err := discordgo.New("Bot " + cfg.Token)
 	if err != nil {
 		return Bot{}, fmt.Errorf("failed to create bot: %w", err)
 	}
 	return Bot{
-		ytClient: youtube.Client{},
-		session:  sess,
-		config:   &cfg,
-		wg:       &sync.WaitGroup{},
+		ytClient:  youtube.Client{},
+		ttsClient: ttsClient,
+		session:   sess,
+		config:    &cfg,
+		wg:        &sync.WaitGroup{},
 	}, nil
 }
 
@@ -91,6 +99,9 @@ func (b *Bot) Stop() {
 	<-ctx.Done()
 	if err := b.session.Close(); err != nil {
 		b.sendAlert("failed to close session: " + err.Error())
+	}
+	if err := b.ttsClient.Close(); err != nil {
+		b.sendAlert("failed to close tts client: " + err.Error())
 	}
 }
 
