@@ -19,6 +19,16 @@ func getStrOption(i *discordgo.InteractionCreate, name string) string {
 	return ""
 }
 
+// returns the option as a string, if the value isn't found return the default value
+func getStrOptionDefault(i *discordgo.InteractionCreate, name, defaultVal string) string {
+	for _, data := range i.ApplicationCommandData().Options {
+		if name == data.Name && data.Type == discordgo.ApplicationCommandOptionString {
+			return data.Value.(string)
+		}
+	}
+	return defaultVal
+}
+
 func logRequest(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	data := i.ApplicationCommandData()
 	args := make([]string, len(data.Options))

@@ -1,14 +1,13 @@
 package bot
 
 import (
-	googletts "cloud.google.com/go/texttospeech/apiv1"
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/Zach51920/discord-bot/tts"
 	"github.com/bwmarrin/discordgo"
 	"github.com/joho/godotenv"
 	"github.com/kkdai/youtube/v2"
-	"google.golang.org/api/option"
 	"log"
 	"os"
 	"os/signal"
@@ -18,9 +17,11 @@ import (
 )
 
 type Bot struct {
-	ttsClient *googletts.Client
+	ttsClient *tts.Client
 	ytClient  youtube.Client
 	session   *discordgo.Session
+
+	voiceConnections map[string]*discordgo.VoiceConnection
 
 	wg     *sync.WaitGroup
 	config *config
@@ -31,9 +32,6 @@ type config struct {
 	ApplicationID  string `json:"applicationID"`
 	GuildID        string `json:"guildID"`
 	AlertChannelID string `json:"alertChannelID"`
-
-	TTSKey          string `json:"ttsAPIKey"`
-	TTSLanguageCode string `json:"ttsLanguageCode"`
 }
 
 func New() (Bot, error) {
@@ -42,7 +40,7 @@ func New() (Bot, error) {
 		return Bot{}, fmt.Errorf("failed to read config: %w", err)
 	}
 
-	ttsClient, err := googletts.NewClient(context.Background(), option.WithAPIKey(cfg.TTSKey))
+	ttsClient, err := tts.NewClient()
 	if err != nil {
 		log.Println("Unable to create text to speech client. Some features may be unavailable.")
 	}
@@ -112,12 +110,10 @@ func (b *Bot) Stop() {
 func loadConfig() (config, error) {
 	_ = godotenv.Load(".env")
 	cfg := config{
-		Token:           os.Getenv("BOT_TOKEN"),
-		ApplicationID:   os.Getenv("APPLICATION_ID"),
-		GuildID:         os.Getenv("GUILD_ID"),
-		AlertChannelID:  os.Getenv("ALERT_CHANNEL_ID"),
-		TTSKey:          os.Getenv("TTS_API_KEY"),
-		TTSLanguageCode: os.Getenv("TTS_LANGUAGE_CODE"),
+		Token:          os.Getenv("BOT_TOKEN"),
+		ApplicationID:  os.Getenv("APPLICATION_ID"),
+		GuildID:        os.Getenv("GUILD_ID"),
+		AlertChannelID: os.Getenv("ALERT_CHANNEL_ID"),
 	}
 	b, _ := json.Marshal(cfg)
 	log.Println("config: " + string(b))

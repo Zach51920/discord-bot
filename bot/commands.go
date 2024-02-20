@@ -2,6 +2,7 @@ package bot
 
 import (
 	"fmt"
+	"github.com/Zach51920/discord-bot/tts"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -53,13 +54,28 @@ func (b *Bot) RegisterCommands() error {
 					Description: "Message to convert to speech",
 					Required:    true,
 				},
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "voice",
+					Description: "What voice do you want the sound to be made with",
+					Choices:     makeOptionChoices(tts.VoiceOptions),
+					Required:    false,
+				},
 			},
 		},
 	}
+
 	if _, err := b.session.ApplicationCommandBulkOverwrite(b.config.ApplicationID, b.config.GuildID, commands); err != nil {
 		return fmt.Errorf("bulk overwrite failed: %w", err)
 	}
-
 	b.session.AddHandler(b.commandHandler)
 	return nil
+}
+
+func makeOptionChoices(choices []string) []*discordgo.ApplicationCommandOptionChoice {
+	optionChoices := make([]*discordgo.ApplicationCommandOptionChoice, len(choices))
+	for i, v := range choices {
+		optionChoices[i] = &discordgo.ApplicationCommandOptionChoice{Name: v, Value: v}
+	}
+	return optionChoices
 }

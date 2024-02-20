@@ -1,7 +1,9 @@
 package bot
 
 import (
+	"errors"
 	"fmt"
+	"github.com/Zach51920/discord-bot/tts"
 	"github.com/bwmarrin/discordgo"
 	"log"
 	"strings"
@@ -27,7 +29,7 @@ func (b *Bot) commandHandler(s *discordgo.Session, i *discordgo.InteractionCreat
 	case "listen":
 		b.handleNotImplemented(s, i)
 	case "say":
-		b.handleNotImplemented(s, i)
+		b.handleSay(s, i)
 	default:
 		b.handleUnknownCommand(s, i)
 	}
@@ -52,6 +54,42 @@ func (b *Bot) handleDownload(s *discordgo.Session, i *discordgo.InteractionCreat
 		Reader:      stream,
 	}); err != nil {
 		handleWriteError(s, i, err)
+		return
+	}
+}
+
+func (b *Bot) handleSay(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	msg := getStrOption(i, "msg")
+	voice := getStrOptionDefault(i, "voice", tts.VoiceOptions[0])
+
+	log.Println("get opus audio")
+	audioData, err := b.ttsClient.GetOPUSAudio(msg, voice)
+	if err != nil {
+		log.Println("failed to get audio: " + err.Error())
+		writeError(s, i, "An unexpected error has occurred")
+		return
+	}
+
+	log.Println("get voice connection")
+	var conn *discordgo.VoiceConnection
+	if conn, err = b.getVoiceConnection(s, i); err != nil {
+		if errors.Is(err, ErrInvalidChannelType) {
+			writeError(s, i, "You can only use say in voice channels")
+			return
+		}
+		log.Println("failed to get voice connection: " + err.Error())
+		writeError(s, i, "An unexpected error has occurred")
+		return
+	}
+
+	log.Println("write audio bytes")
+	if err = writeAudioBytes(conn, audioData); err != nil {
+		log.Println("failed to write audio bytes: " + err.Error())
+		writeError(s, i, "An unexpected error has occurred")
+		return
+	}
+	if err = writeMessage(s, i, "Done"); err != nil {
+		log.Println("[ERROR] failed to write message: " + err.Error())
 		return
 	}
 }
