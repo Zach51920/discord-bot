@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/Zach51920/discord-bot/google"
 	"github.com/bwmarrin/discordgo"
 	"github.com/joho/godotenv"
 	"github.com/kkdai/youtube/v2"
@@ -16,6 +17,7 @@ import (
 )
 
 type Bot struct {
+	gClient  google.Client
 	ytClient youtube.Client
 	session  *discordgo.Session
 
@@ -42,6 +44,7 @@ func New() (Bot, error) {
 	}
 	return Bot{
 		ytClient: youtube.Client{},
+		gClient:  google.Client{},
 		session:  sess,
 		config:   &cfg,
 		wg:       &sync.WaitGroup{},

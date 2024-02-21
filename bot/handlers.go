@@ -26,6 +26,8 @@ func (b *Bot) commandHandler(s *discordgo.Session, i *discordgo.InteractionCreat
 		b.handleNotImplemented(s, i)
 	case "listen":
 		b.handleNotImplemented(s, i)
+	case "search":
+		b.handleSearch(s, i)
 	default:
 		b.handleUnknownCommand(s, i)
 	}
@@ -50,6 +52,21 @@ func (b *Bot) handleDownload(s *discordgo.Session, i *discordgo.InteractionCreat
 		Reader:      stream,
 	}); err != nil {
 		handleWriteError(s, i, err)
+		return
+	}
+}
+
+func (b *Bot) handleSearch(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	results, err := b.gClient.SearchYT(getStrOption(i, "query"))
+	if err != nil {
+		log.Println("[ERROR] failed to search youtube: " + err.Error())
+		writeError(s, i, "An unexpected error has occurred")
+		return
+	}
+
+	message := &discordgo.WebhookParams{Embeds: mapYTSearchResults(results)}
+	if _, err = s.FollowupMessageCreate(i.Interaction, false, message); err != nil {
+		log.Println("[ERROR] failed to write response: " + err.Error())
 		return
 	}
 }

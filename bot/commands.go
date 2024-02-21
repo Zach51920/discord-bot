@@ -20,6 +20,18 @@ func (b *Bot) RegisterCommands() error {
 			},
 		},
 		{
+			Name:        "search",
+			Description: "BETA | Search for YouTube videos to play and/or download.",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "query",
+					Description: "Search query to find YouTube videos.",
+					Required:    true,
+				},
+			},
+		},
+		{
 			Name:        "watch",
 			Description: "COMING SOON | Play a YouTube video directly into the voice channel.",
 			Options: []*discordgo.ApplicationCommandOption{
