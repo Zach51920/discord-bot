@@ -14,7 +14,7 @@ func (b *Bot) RegisterCommands() error {
 				{
 					Type:        discordgo.ApplicationCommandOptionString,
 					Name:        "url",
-					Description: "URL of the YouTube video to download",
+					Description: "VideoID of the YouTube video to download",
 					Required:    true,
 				},
 			},
@@ -38,7 +38,7 @@ func (b *Bot) RegisterCommands() error {
 				{
 					Type:        discordgo.ApplicationCommandOptionString,
 					Name:        "url",
-					Description: "URL of the YouTube video to play",
+					Description: "VideoID of the YouTube video to play",
 					Required:    true,
 				},
 			},
@@ -50,7 +50,7 @@ func (b *Bot) RegisterCommands() error {
 				{
 					Type:        discordgo.ApplicationCommandOptionString,
 					Name:        "url",
-					Description: "URL of the YouTube video to play",
+					Description: "VideoID of the YouTube video to play",
 					Required:    true,
 				},
 			},
@@ -60,6 +60,6 @@ func (b *Bot) RegisterCommands() error {
 		return fmt.Errorf("bulk overwrite failed: %w", err)
 	}
 
-	b.session.AddHandler(b.commandHandler)
+	b.session.AddHandler(b.handler)
 	return nil
 }

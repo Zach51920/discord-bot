@@ -4,10 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/Zach51920/discord-bot/google"
+	"github.com/Zach51920/discord-bot/handlers"
 	"github.com/bwmarrin/discordgo"
 	"github.com/joho/godotenv"
-	"github.com/kkdai/youtube/v2"
 	"log"
 	"os"
 	"os/signal"
@@ -17,8 +16,7 @@ import (
 )
 
 type Bot struct {
-	gClient  google.Client
-	ytClient youtube.Client
+	handlers *handlers.Handlers
 	session  *discordgo.Session
 
 	wg     *sync.WaitGroup
@@ -43,8 +41,7 @@ func New() (Bot, error) {
 		return Bot{}, fmt.Errorf("failed to create bot: %w", err)
 	}
 	return Bot{
-		ytClient: youtube.Client{},
-		gClient:  google.Client{},
+		handlers: handlers.New(),
 		session:  sess,
 		config:   &cfg,
 		wg:       &sync.WaitGroup{},
@@ -83,17 +80,17 @@ func (b *Bot) Start() error {
 func (b *Bot) Stop() {
 	ctx, ctxCancel := context.WithTimeout(context.Background(), 5*time.Second)
 
-	b.sendAlert("shutting down bot")
-	log.Println("received shutdown signal, waiting for processes to finish...")
+	b.SendAlert("shutting down bot")
+	log.Println("[INFO] received shutdown signal, waiting for processes to finish...")
 	go func() {
 		b.wg.Wait() // wait for processes to finish
-		log.Println("processes finished successfully")
+		log.Println("[INFO] processes finished successfully")
 		ctxCancel()
 	}()
 
 	<-ctx.Done()
 	if err := b.session.Close(); err != nil {
-		b.sendAlert("failed to close session: " + err.Error())
+		b.SendAlert("failed to close session: " + err.Error())
 	}
 }
 
@@ -106,7 +103,7 @@ func loadConfig() (config, error) {
 		AlertChannelID: os.Getenv("ALERT_CHANNEL_ID"),
 	}
 	b, _ := json.Marshal(cfg)
-	log.Println("config: " + string(b))
+	log.Println("[DEBUG] config: " + string(b))
 
 	return cfg, nil
 }
