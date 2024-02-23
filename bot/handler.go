@@ -36,8 +36,9 @@ func (b *Bot) handler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 func (b *Bot) handleCommand(s *discordgo.Session, i *discordgo.InteractionCreate) (handlers.Response, error) {
 	switch i.ApplicationCommandData().Name {
 	case "download":
-		videoID := getStrOption(i, "url")
-		return b.handlers.Download(handlers.DownloadVideoParams{VideoID: videoID})
+		videoID := getPtrStrOption(i, "url")
+		query := getPtrStrOption(i, "query")
+		return b.handlers.Download(handlers.DownloadVideoParams{VideoID: videoID, Query: query})
 	case "watch":
 		return b.handlers.NotImplemented()
 	case "listen":
@@ -75,6 +76,16 @@ func getStrOption(i *discordgo.InteractionCreate, name string) string {
 		}
 	}
 	return ""
+}
+
+func getPtrStrOption(i *discordgo.InteractionCreate, name string) *string {
+	for _, data := range i.ApplicationCommandData().Options {
+		if name == data.Name && data.Type == discordgo.ApplicationCommandOptionString {
+			val := data.Value.(string)
+			return &val
+		}
+	}
+	return nil
 }
 
 func derefStr(ptr *string) string {

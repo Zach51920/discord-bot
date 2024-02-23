@@ -15,7 +15,15 @@ type File struct {
 }
 
 func (h *Handlers) Download(params DownloadVideoParams) (Response, error) {
-	video, err := h.ytClient.GetVideo(params.VideoID)
+	videoID, err := h.getVideoIDFromParams(params)
+	if err != nil {
+		if errors.Is(err, ErrInvalidParams) {
+			return ErrorResponse("Invalid Parameters"), nil
+		}
+		return Response{}, fmt.Errorf("video ID error: %w", err)
+	}
+
+	video, err := h.ytClient.GetVideo(videoID)
 	if err != nil {
 		if errors.Is(err, youtube.ErrInvalidCharactersInVideoID) || errors.Is(err, youtube.ErrVideoIDMinLength) {
 			return ErrorResponse("Invalid Video ID"), nil
@@ -42,4 +50,21 @@ func (h *Handlers) Download(params DownloadVideoParams) (Response, error) {
 		ContentType:  video.Formats[0].MimeType,
 		ReaderCloser: stream,
 	}}}, nil
+}
+
+func (h *Handlers) getVideoIDFromParams(params DownloadVideoParams) (string, error) {
+	if params.VideoID != nil {
+		return *params.VideoID, nil
+	} else if params.Query == nil {
+		return "", ErrInvalidParams
+	}
+
+	result, err := h.gClient.SearchYT(*params.Query)
+	if err != nil {
+		return "", fmt.Errorf("search error: %w", err)
+	}
+	if len(result.Items) == 0 {
+		return "", fmt.Errorf("no search results found for query: %s", *params.Query)
+	}
+	return result.Items[0].ID.VideoID, nil
 }

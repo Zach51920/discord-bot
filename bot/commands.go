@@ -9,13 +9,19 @@ func (b *Bot) RegisterCommands() error {
 	commands := []*discordgo.ApplicationCommand{
 		{
 			Name:        "download",
-			Description: "Download a YouTube video",
+			Description: "Download a YouTube video.",
 			Options: []*discordgo.ApplicationCommandOption{
 				{
 					Type:        discordgo.ApplicationCommandOptionString,
 					Name:        "url",
-					Description: "VideoID of the YouTube video to download",
-					Required:    true,
+					Description: "VideoID of the YouTube video to download.",
+					Required:    false,
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "query",
+					Description: "Search query for the YouTube video to download.",
+					Required:    false,
 				},
 			},
 		},
