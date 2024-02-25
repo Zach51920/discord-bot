@@ -6,7 +6,8 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-func (h *Handlers) SearchVideos(params SearchVideoParams) (Response, error) {
+func (h *Handlers) SearchVideos(options RequestOptions) (Response, error) {
+	params := GetSearchVideoParams(options)
 	results, err := h.gClient.SearchYT(params.Query)
 	if err != nil {
 		return Response{}, fmt.Errorf("search failed: %w", err)

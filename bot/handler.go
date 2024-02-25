@@ -19,7 +19,8 @@ func (b *Bot) handler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		return
 	}
 
-	resp, err := b.handleCommand(s, i)
+	data := i.ApplicationCommandData()
+	resp, err := b.handleCommand(data.Name, handlers.NewRequestOptions(data.Options))
 	defer resp.Close()
 	if err != nil {
 		log.Println("[ERROR] " + err.Error())
@@ -33,19 +34,16 @@ func (b *Bot) handler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	}
 }
 
-func (b *Bot) handleCommand(s *discordgo.Session, i *discordgo.InteractionCreate) (handlers.Response, error) {
-	switch i.ApplicationCommandData().Name {
+func (b *Bot) handleCommand(command string, options handlers.RequestOptions) (handlers.Response, error) {
+	switch command {
 	case "download":
-		videoID := getPtrStrOption(i, "url")
-		query := getPtrStrOption(i, "query")
-		return b.handlers.Download(handlers.DownloadVideoParams{VideoID: videoID, Query: query})
+		return b.handlers.Download(options)
 	case "watch":
 		return b.handlers.NotImplemented()
 	case "listen":
 		return b.handlers.NotImplemented()
 	case "search":
-		query := getStrOption(i, "query")
-		return b.handlers.SearchVideos(handlers.SearchVideoParams{Query: query})
+		return b.handlers.SearchVideos(options)
 	default:
 		return b.handlers.UnknownCommand()
 	}
@@ -67,25 +65,6 @@ func acknowledgeRequest(s *discordgo.Session, i *discordgo.InteractionCreate) er
 	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
 	})
-}
-
-func getStrOption(i *discordgo.InteractionCreate, name string) string {
-	for _, data := range i.ApplicationCommandData().Options {
-		if name == data.Name && data.Type == discordgo.ApplicationCommandOptionString {
-			return data.Value.(string)
-		}
-	}
-	return ""
-}
-
-func getPtrStrOption(i *discordgo.InteractionCreate, name string) *string {
-	for _, data := range i.ApplicationCommandData().Options {
-		if name == data.Name && data.Type == discordgo.ApplicationCommandOptionString {
-			val := data.Value.(string)
-			return &val
-		}
-	}
-	return nil
 }
 
 func derefStr(ptr *string) string {

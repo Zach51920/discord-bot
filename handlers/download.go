@@ -14,7 +14,8 @@ type File struct {
 	ReaderCloser io.ReadCloser
 }
 
-func (h *Handlers) Download(params DownloadVideoParams) (Response, error) {
+func (h *Handlers) Download(options RequestOptions) (Response, error) {
+	params := GetDownloadVideoParams(options)
 	videoID, err := h.getVideoIDFromParams(params)
 	if err != nil {
 		if errors.Is(err, ErrInvalidParams) {
