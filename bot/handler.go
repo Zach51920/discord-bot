@@ -22,12 +22,10 @@ func (b *Bot) handler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	data := i.ApplicationCommandData()
 	resp, err := b.handleCommand(data.Name, handlers.NewRequestOptions(data.Options))
 	defer resp.Close()
-	if err != nil {
-		log.Println("[ERROR] " + err.Error())
-		writeError(s, i, "An unexpected error has occurred")
-		return
+	if err == nil {
+		err = writeResponse(s, i, resp)
 	}
-	if err = writeResponse(s, i, resp); err != nil {
+	if err != nil {
 		log.Println("[ERROR] " + err.Error())
 		writeError(s, i, "An unexpected error has occurred")
 		return
