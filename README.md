@@ -3,21 +3,22 @@
 ## Overview
 
 A Discord Bot for media playback and management. The bot was built
-using [discordgo](https://github.com/bwmarrin/discordgo) to interact with the discord API.
-To download YouTube videos I'm using kkdais [youtube](https://github.com/kkdai/youtube/v2) package. Since I plan on
-deploying this with docker, I created a GitHub workflow to create and publish an image to dockerhub on merges into the
-main branch. The bot is capable of sending alerts to a discord channel of your choosing. To avoid excessive
-notifications Alerts are only sent when there is a critical failure, or when the bot is taken offline. All messages sent
-to the alert channel also show up in logs. You can opt out of receiving alerts by leaving the ALERT_CHANNEL_ID
-environment variable blank.
+using [discordgo](https://github.com/bwmarrin/discordgo) to interact with the discord API. I created my own client for
+interacting with Google's APIs, and I'm using kkdais [youtube](https://github.com/kkdai/youtube/v2) package To download
+YouTube videos. Since I plan on deploying this with docker, I created a GitHub workflow to create and publish an image
+to dockerhub on merges into the main branch. The bot is capable of sending alerts to a discord channel of your choosing.
+To avoid excessive notifications Alerts are only sent when there is a critical failure, or when the bot is taken
+offline. All messages sent to the alert channel also show up in logs. You can opt out of receiving alerts by leaving the
+ALERT_CHANNEL_ID environment variable blank.
 
 Note: This app is hardly stable and far from feature complete, use at your own risk!
 
 ## Usage
 
-- `/download` - Download a YouTube video from a URL
-- `/watch` - | <b>coming soon</b> | Play a YouTube video in a voice channel
-- `/listen` - | <b>coming soon</b> | Play music in a voice channel
+- `/download` - Download a YouTube video from a URL or search query
+- `/search` - <b>beta</b> | Search for YouTube videos with a given query
+- `/watch` - <b>coming soon</b> | Play a YouTube video in a voice channel
+- `/listen` - <b>coming soon</b> | Play music in a voice channel
 
 ## Configuration
 
@@ -58,4 +59,4 @@ These can be set in a `.env` or by using the `export` command.
 - Play, queue, and control music directly in a discord voice channel
 - Play YouTube videos directly in a voice channel
 - Use some sort of queue to handle alert messages
-- Semantic versioning
+- Custom tts in voice channels
