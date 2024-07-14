@@ -1,59 +1,46 @@
 package bot
 
 import (
-	"fmt"
-	"github.com/Zach51920/discord-bot/handlers"
 	"github.com/bwmarrin/discordgo"
-	"log"
-	"strings"
+	"log/slog"
 )
 
 func (b *Bot) handler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	b.wg.Add(1)
 	defer b.wg.Done()
-	logRequest(s, i)
+	logRequest(i)
 
 	// defer the message response and let the user know we got the request
 	if err := acknowledgeRequest(s, i); err != nil {
-		log.Println("[ERROR] failed to acknowledge request: " + err.Error())
+		slog.Error("failed to acknowledge request: " + err.Error())
 		return
 	}
+	defer followupRequest(s, i)
 
 	data := i.ApplicationCommandData()
-	resp, err := b.handleCommand(data.Name, handlers.NewRequestOptions(data.Options))
-	defer resp.Close()
-	if err == nil {
-		err = writeResponse(s, i, resp)
-	}
-	if err != nil {
-		log.Println("[ERROR] " + err.Error())
-		writeError(s, i, "An unexpected error has occurred")
+	handleFn, ok := b.handlers[data.Name]
+	if !ok {
+		s.Lock()
+		defer s.Unlock()
+		if _, err := s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
+			Content: "Unknown request command"}); err != nil {
+			slog.Error("failed to write response", "error", err)
+		}
+		slog.Error("unknown request command", "command", data.Name)
 		return
 	}
+	handleFn(s, i)
 }
 
-func (b *Bot) handleCommand(command string, options handlers.RequestOptions) (handlers.Response, error) {
-	switch command {
-	case "download":
-		return b.handlers.Download(options)
-	case "watch":
-		return b.handlers.NotImplemented()
-	case "listen":
-		return b.handlers.NotImplemented()
-	case "search":
-		return b.handlers.SearchVideos(options)
-	default:
-		return b.handlers.UnknownCommand()
-	}
-}
-
-func logRequest(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func logRequest(i *discordgo.InteractionCreate) {
 	data := i.ApplicationCommandData()
-	args := make([]string, len(data.Options))
-	for j, opt := range data.Options {
-		args[j] = fmt.Sprintf("%s:%v ", opt.Name, opt.Value)
+	args := make([]any, 4, 4+(len(data.Options)*2))
+	args[0], args[1] = "user", i.Member.User.Username
+	args[2], args[3] = "command", data.Name
+	for _, opt := range data.Options {
+		args = append(args, opt.Name, opt.Value)
 	}
-	log.Printf("[INFO] %s made a %s request: %s", i.Member.User.Username, data.Name, strings.Join(args, ","))
+	slog.Info("received request", args...)
 }
 
 func acknowledgeRequest(s *discordgo.Session, i *discordgo.InteractionCreate) error {
@@ -65,9 +52,26 @@ func acknowledgeRequest(s *discordgo.Session, i *discordgo.InteractionCreate) er
 	})
 }
 
-func derefStr(ptr *string) string {
-	if ptr == nil {
-		return ""
+func followupRequest(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	s.Lock()
+	defer s.Unlock()
+
+	// check if we already responded
+	resp, err := s.InteractionResponse(i.Interaction)
+	if err != nil {
+		slog.Error("failed to get response message", "error", err)
+		return
 	}
-	return *ptr
+	if len(resp.Embeds) != 0 || len(resp.Attachments) != 0 || resp.Content != "" {
+		// we have already responded, return
+		return
+	}
+
+	// if we haven't made a response, something went wrong
+	if _, err = s.FollowupMessageCreate(i.Interaction, false,
+		&discordgo.WebhookParams{
+			Content: "An unexpected error has occurred.",
+		}); err != nil {
+		slog.Error("failed to write response", "error", err)
+	}
 }
