@@ -1,37 +1,93 @@
 package handlers
 
 import (
-	"github.com/Zach51920/discord-bot/google"
-	"github.com/kkdai/youtube/v2"
-	"log"
+	"fmt"
+	"github.com/Zach51920/discord-bot/youtube"
+	"github.com/bwmarrin/discordgo"
+	"log/slog"
+	"time"
 )
 
+type HandlerFn func(s *discordgo.Session, i *discordgo.InteractionCreate)
+
 type Handlers struct {
-	logger   *log.Logger
-	gClient  google.Client
-	ytClient youtube.Client
+	ytClient *youtube.Client
 }
 
 func New() *Handlers {
-	return &Handlers{
-		logger:   log.Default(),
-		gClient:  google.Client{},
-		ytClient: youtube.Client{},
+	return &Handlers{ytClient: youtube.New()}
+}
+
+func (h *Handlers) Search(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	opts := NewRequestOptions(i.ApplicationCommandData().Options)
+	query, _ := opts.GetString("query")
+
+	results, err := h.ytClient.Search(query)
+	if err != nil {
+		slog.Error("failed to search youtube", "error", err)
+		return
+	}
+	embeds := mapYTSearchResults(results)
+	writeResponse(s, i, withEmbeds(embeds))
+}
+
+func (h *Handlers) Download(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	opts := NewRequestOptions(i.ApplicationCommandData().Options)
+	videoID, err := h.getVideoIDFromRequest(opts)
+	if err != nil {
+		slog.Error("failed to get videoID", "error", err)
+		return
+	}
+
+	video, err := h.ytClient.Download(videoID)
+	if err != nil {
+		slog.Error("failed to get video", "error", err)
+		return
+	}
+
+	files := []*discordgo.File{mapFile(video)}
+	writeResponse(s, i, withFiles(files))
+}
+
+func (h *Handlers) Bedtime(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	opts := NewRequestOptions(i.ApplicationCommandData().Options)
+	user, _ := opts.GetUser(s)
+	role, _ := opts.GetRole(s)
+	if user == nil && role == nil {
+		writeMessage(s, i, "Invalid request, all optional parameters cannot be null.")
+		return
+	}
+
+	timeout := time.Now().Add(16 * time.Hour)
+	if err := s.GuildMemberTimeout(i.GuildID, user.ID, &timeout); err != nil {
+		slog.Error("failed to timeout user", "error", err)
+		return
+	}
+
+	reason, ok := opts.GetString("reason")
+	if !ok {
+		reason = "baby raging"
+	}
+	content := fmt.Sprintf("The user %s has been bedtime banned until %v for \"%s\".", user.Username, timeout.String(), reason)
+	if _, err := s.ChannelMessageSend(i.ChannelID, content); err != nil {
+		slog.Error("failed to send message", "error", err)
+		return
 	}
 }
 
-func (h *Handlers) NotImplemented() (Response, error) {
-	msg := "Command is not implemented"
-	return Response{
-		IsError: true,
-		Message: &msg,
-	}, nil
-}
+func (h *Handlers) getVideoIDFromRequest(opts RequestOptions) (string, error) {
+	videoID, ok := opts.GetString("url")
+	if ok {
+		return videoID, nil
+	}
 
-func (h *Handlers) UnknownCommand() (Response, error) {
-	msg := "Unknown command"
-	return Response{
-		IsError: true,
-		Message: &msg,
-	}, nil
+	query, _ := opts.GetString("query")
+	result, err := h.ytClient.Search(query)
+	if err != nil {
+		return "", fmt.Errorf("search error: %w", err)
+	}
+	if len(result.Items) == 0 {
+		return "", fmt.Errorf("no search results found for query: %s", query)
+	}
+	return result.Items[0].ID.VideoID, nil
 }

@@ -1,14 +1,15 @@
 package main
 
-import discordbot "github.com/Zach51920/discord-bot/bot"
+import (
+	discordbot "github.com/Zach51920/discord-bot/bot"
+	"log/slog"
+	"os"
+)
 
 func main() {
-	bot, err := discordbot.New()
-	if err != nil {
-		panic("failed to create bot: " + err.Error())
-	}
-
-	if err = bot.Run(); err != nil {
-		panic("failed to run bot: " + err.Error())
+	bot := discordbot.New()
+	if err := bot.Run(); err != nil {
+		slog.Error("failed to run bot", "error", err)
+		os.Exit(1)
 	}
 }

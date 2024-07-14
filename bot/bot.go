@@ -2,12 +2,10 @@ package bot
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
+	"github.com/Zach51920/discord-bot/config"
 	"github.com/Zach51920/discord-bot/handlers"
 	"github.com/bwmarrin/discordgo"
-	"github.com/joho/godotenv"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"sync"
@@ -16,44 +14,36 @@ import (
 )
 
 type Bot struct {
-	handlers *handlers.Handlers
-	session  *discordgo.Session
-
-	wg     *sync.WaitGroup
-	config *config
+	handlers map[string]handlers.HandlerFn
+	sess     *discordgo.Session
+	wg       sync.WaitGroup
 }
 
-type config struct {
-	Token          string `json:"botToken"`
-	ApplicationID  string `json:"applicationID"`
-	GuildID        string `json:"guildID"`
-	AlertChannelID string `json:"alertChannelID"`
-}
-
-func New() (Bot, error) {
-	cfg, err := loadConfig()
+func New() *Bot {
+	token := config.GetString("BOT_TOKEN")
+	sess, err := discordgo.New("Bot " + token)
 	if err != nil {
-		return Bot{}, fmt.Errorf("failed to read config: %w", err)
+		slog.Error("failed to create session", "error", err)
+		os.Exit(1)
 	}
-
-	sess, err := discordgo.New("Bot " + cfg.Token)
-	if err != nil {
-		return Bot{}, fmt.Errorf("failed to create bot: %w", err)
+	if err = RegisterCommands(sess, config.GetString("GUILD_ID")); err != nil {
+		slog.Error("failed to register commands", "error", err)
+		os.Exit(1)
 	}
-	return Bot{
-		handlers: handlers.New(),
-		session:  sess,
-		config:   &cfg,
-		wg:       &sync.WaitGroup{},
-	}, nil
+	return &Bot{
+		handlers: getHandlers(),
+		sess:     sess,
+		wg:       sync.WaitGroup{},
+	}
 }
 
-// Run starts the bot and keeps it running until it receives a shutdown signal.
 func (b *Bot) Run() error {
-	if err := b.Start(); err != nil {
+	b.sess.AddHandler(b.handler)
+	if err := b.sess.Open(); err != nil {
 		return err
 	}
-	defer b.Stop()
+	slog.Info("bot started...")
+	defer b.Shutdown()
 
 	// wait for a shutdown signal
 	shutdownChan := make(chan os.Signal, 1)
@@ -63,47 +53,28 @@ func (b *Bot) Run() error {
 	return nil
 }
 
-// Start opens a new bot session.
-func (b *Bot) Start() error {
-	if err := b.RegisterCommands(); err != nil {
-		return fmt.Errorf("failed to register commands: %w", err)
-	}
-
-	if err := b.session.Open(); err != nil {
-		return fmt.Errorf("failed to start session: %w", err)
-	}
-	log.Println("bot started...")
-	return nil
-}
-
-// Stop triggers a graceful shutdown. If the shutdown takes more than 5 seconds pull the plug.
-func (b *Bot) Stop() {
+// Shutdown triggers a graceful shutdown. If the shutdown takes more than 5 seconds pull the plug.
+func (b *Bot) Shutdown() {
 	ctx, ctxCancel := context.WithTimeout(context.Background(), 5*time.Second)
 
-	b.SendAlert("shutting down bot")
-	log.Println("[INFO] received shutdown signal, waiting for processes to finish...")
+	slog.Info("received shutdown signal, waiting for processes to finish...")
 	go func() {
 		b.wg.Wait() // wait for processes to finish
-		log.Println("[INFO] processes finished successfully")
+		slog.Info("process finished successfully")
 		ctxCancel()
 	}()
 
 	<-ctx.Done()
-	if err := b.session.Close(); err != nil {
-		b.SendAlert("failed to close session: " + err.Error())
+	if err := b.sess.Close(); err != nil {
+		slog.Error("failed to close session", "error", err)
 	}
 }
 
-func loadConfig() (config, error) {
-	_ = godotenv.Load(".env")
-	cfg := config{
-		Token:          os.Getenv("BOT_TOKEN"),
-		ApplicationID:  os.Getenv("APPLICATION_ID"),
-		GuildID:        os.Getenv("GUILD_ID"),
-		AlertChannelID: os.Getenv("ALERT_CHANNEL_ID"),
+func getHandlers() map[string]handlers.HandlerFn {
+	handle := handlers.New()
+	return map[string]handlers.HandlerFn{
+		"yt-download": handle.Download,
+		"yt-search":   handle.Search,
+		"bedtime-ban": handle.Bedtime,
 	}
-	b, _ := json.Marshal(cfg)
-	log.Println("[DEBUG] config: " + string(b))
-
-	return cfg, nil
 }
