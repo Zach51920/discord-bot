@@ -1,11 +1,25 @@
 package bot
 
 import (
+	"github.com/Zach51920/discord-bot/handlers"
 	"github.com/bwmarrin/discordgo"
 	"log/slog"
 )
 
-func (b *Bot) handler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (b *Bot) RegisterHandlers() {
+	handle := handlers.New()
+	b.handlers = map[string]handlers.HandlerFn{
+		"yt-download": handle.Download,
+		"yt-search":   handle.Search,
+		"bedtime-ban": handle.Bedtime,
+	}
+
+	b.sess.AddHandler(b.handleInteraction)
+	b.sess.AddHandler(b.handleLeaveGuild)
+	b.sess.AddHandler(b.handleJoinGuild)
+}
+
+func (b *Bot) handleInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	b.wg.Add(1)
 	defer b.wg.Done()
 	logRequest(i)
@@ -30,6 +44,14 @@ func (b *Bot) handler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		return
 	}
 	handleFn(s, i)
+}
+
+func (b *Bot) handleLeaveGuild(s *discordgo.Session, event *discordgo.GuildDelete) {
+	b.sendAlert("bot was removed from guild \"%s\"", event.Guild.ID)
+}
+
+func (b *Bot) handleJoinGuild(s *discordgo.Session, event *discordgo.GuildCreate) {
+	b.sendAlert("bot was added to guild \"%s\"", event.Guild.Name)
 }
 
 func logRequest(i *discordgo.InteractionCreate) {

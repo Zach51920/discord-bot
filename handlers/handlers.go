@@ -52,11 +52,18 @@ func (h *Handlers) Download(s *discordgo.Session, i *discordgo.InteractionCreate
 func (h *Handlers) Bedtime(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	opts := NewRequestOptions(i.ApplicationCommandData().Options)
 	user, _ := opts.GetUser(s)
-	role, _ := opts.GetRole(s)
+	role, _ := opts.GetRole(s, i)
+	reason, ok := opts.GetString("reason")
+	if !ok {
+		reason = "baby raging"
+	}
 	if user == nil && role == nil {
 		writeMessage(s, i, "Invalid request, all optional parameters cannot be null.")
 		return
 	}
+
+	s.Lock()
+	defer s.Unlock()
 
 	timeout := time.Now().Add(16 * time.Hour)
 	if err := s.GuildMemberTimeout(i.GuildID, user.ID, &timeout); err != nil {
@@ -64,10 +71,6 @@ func (h *Handlers) Bedtime(s *discordgo.Session, i *discordgo.InteractionCreate)
 		return
 	}
 
-	reason, ok := opts.GetString("reason")
-	if !ok {
-		reason = "baby raging"
-	}
 	content := fmt.Sprintf("The user %s has been bedtime banned until %v for \"%s\".", user.Username, timeout.String(), reason)
 	if _, err := s.ChannelMessageSend(i.ChannelID, content); err != nil {
 		slog.Error("failed to send message", "error", err)
