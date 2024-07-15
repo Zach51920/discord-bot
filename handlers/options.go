@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"github.com/bwmarrin/discordgo"
-	"os"
 )
 
 type RequestOptions map[string]*discordgo.ApplicationCommandInteractionDataOption
@@ -36,9 +35,9 @@ func (opts RequestOptions) GetUser(s *discordgo.Session) (*discordgo.User, bool)
 	return nil, false
 }
 
-func (opts RequestOptions) GetRole(s *discordgo.Session) (*discordgo.Role, bool) {
+func (opts RequestOptions) GetRole(s *discordgo.Session, i *discordgo.InteractionCreate) (*discordgo.Role, bool) {
 	if opt, ok := opts["role"]; ok && opt.Type == discordgo.ApplicationCommandOptionRole {
-		return opt.RoleValue(s, os.Getenv("GUILD_ID")), true
+		return opt.RoleValue(s, i.GuildID), true
 	}
 	return nil, false
 }

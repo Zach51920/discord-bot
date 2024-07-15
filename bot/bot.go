@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"fmt"
 	"github.com/Zach51920/discord-bot/config"
 	"github.com/Zach51920/discord-bot/handlers"
 	"github.com/bwmarrin/discordgo"
@@ -26,24 +27,20 @@ func New() *Bot {
 		slog.Error("failed to create session", "error", err)
 		os.Exit(1)
 	}
-	if err = RegisterCommands(sess, config.GetString("GUILD_ID")); err != nil {
-		slog.Error("failed to register commands", "error", err)
-		os.Exit(1)
-	}
 	return &Bot{
-		handlers: getHandlers(),
-		sess:     sess,
-		wg:       sync.WaitGroup{},
+		sess: sess,
+		wg:   sync.WaitGroup{},
 	}
 }
 
 func (b *Bot) Run() error {
-	b.sess.AddHandler(b.handler)
 	if err := b.sess.Open(); err != nil {
 		return err
 	}
 	slog.Info("bot started...")
 	defer b.Shutdown()
+	b.RegisterCommands()
+	b.RegisterHandlers()
 
 	// wait for a shutdown signal
 	shutdownChan := make(chan os.Signal, 1)
@@ -70,11 +67,14 @@ func (b *Bot) Shutdown() {
 	}
 }
 
-func getHandlers() map[string]handlers.HandlerFn {
-	handle := handlers.New()
-	return map[string]handlers.HandlerFn{
-		"yt-download": handle.Download,
-		"yt-search":   handle.Search,
-		"bedtime-ban": handle.Bedtime,
+func (b *Bot) sendAlert(format string, a ...any) {
+	content := fmt.Sprintf(format, a...)
+	channelID := config.GetString("ALERT_CHANNEL_ID")
+	slog.Info("sending alert", "content", content)
+
+	b.sess.Lock()
+	defer b.sess.Unlock()
+	if _, err := b.sess.ChannelMessageSend(channelID, content); err != nil {
+		slog.Error("failed to send alert", "error", err)
 	}
 }
