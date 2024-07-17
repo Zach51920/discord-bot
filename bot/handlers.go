@@ -51,6 +51,7 @@ func (b *Bot) handleLeaveGuild(s *discordgo.Session, event *discordgo.GuildDelet
 }
 
 func (b *Bot) handleJoinGuild(s *discordgo.Session, event *discordgo.GuildCreate) {
+	b.overwriteCommands(event.Guild.ID, event.Guild.Name)
 	b.sendAlert("bot was added to guild \"%s\"", event.Guild.Name)
 }
 

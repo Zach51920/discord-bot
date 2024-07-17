@@ -70,11 +70,14 @@ func (b *Bot) RegisterCommands() {
 		return
 	}
 
-	applicationID := config.GetString("APPLICATION_ID")
 	for _, guild := range guilds {
-		slog.Info("overwriting commands", "guild", guild.Name)
-		if _, err = b.sess.ApplicationCommandBulkOverwrite(applicationID, guild.ID, commands); err != nil {
-			slog.Error("failed to overwrite commands", "error", err, "guild", guild.Name)
-		}
+		b.overwriteCommands(guild.ID, guild.Name)
+	}
+}
+
+func (b *Bot) overwriteCommands(guildID, guildName string) {
+	applicationID := config.GetString("APPLICATION_ID")
+	if _, err := b.sess.ApplicationCommandBulkOverwrite(applicationID, guildID, commands); err != nil {
+		slog.Error("failed to overwrite commands", "error", err, "guild", guildName)
 	}
 }
