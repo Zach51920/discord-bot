@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/Zach51920/discord-bot/config"
-	"github.com/Zach51920/discord-bot/handlers"
 	"github.com/bwmarrin/discordgo"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -15,9 +15,10 @@ import (
 )
 
 type Bot struct {
-	handlers map[string]handlers.HandlerFn
-	sess     *discordgo.Session
-	wg       sync.WaitGroup
+	closers []io.Closer
+
+	sess *discordgo.Session
+	wg   sync.WaitGroup
 }
 
 func New() *Bot {
@@ -28,8 +29,9 @@ func New() *Bot {
 		os.Exit(1)
 	}
 	return &Bot{
-		sess: sess,
-		wg:   sync.WaitGroup{},
+		sess:    sess,
+		wg:      sync.WaitGroup{},
+		closers: make([]io.Closer, 0),
 	}
 }
 
@@ -39,6 +41,7 @@ func (b *Bot) Run() error {
 	}
 	slog.Info("bot started...")
 	defer b.Shutdown()
+
 	b.RegisterCommands()
 	b.RegisterHandlers()
 

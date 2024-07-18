@@ -1,21 +1,47 @@
-package handlers
+package interactions
 
 import (
 	"fmt"
 	"github.com/Zach51920/discord-bot/youtube"
 	"github.com/bwmarrin/discordgo"
 	"log/slog"
+	"sync"
 	"time"
 )
 
-type HandlerFn func(s *discordgo.Session, i *discordgo.InteractionCreate)
-
 type Handlers struct {
+	wg       sync.WaitGroup
 	ytClient *youtube.Client
 }
 
 func New() *Handlers {
 	return &Handlers{ytClient: youtube.New()}
+}
+
+func (h *Handlers) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	h.wg.Add(1)
+	defer h.wg.Done()
+	logRequest(i)
+
+	// defer the message response and let the user know we got the request
+	if err := acknowledgeRequest(s, i); err != nil {
+		slog.Error("failed to acknowledge request: " + err.Error())
+		return
+	}
+	defer ensureFollowup(s, i)
+
+	// handle the request
+	data := i.ApplicationCommandData()
+	switch data.Name {
+	case "yt-download":
+		h.Download(s, i)
+	case "yt-search":
+		h.Search(s, i)
+	case "bedtime-ban":
+		h.Bedtime(s, i)
+	default:
+		writeMessage(s, i, "Unknown request command")
+	}
 }
 
 func (h *Handlers) Search(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -93,4 +119,9 @@ func (h *Handlers) getVideoIDFromRequest(opts RequestOptions) (string, error) {
 		return "", fmt.Errorf("no search results found for query: %s", query)
 	}
 	return result.Items[0].ID.VideoID, nil
+}
+
+func (h *Handlers) Close() error {
+	h.wg.Wait()
+	return nil
 }

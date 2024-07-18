@@ -1,4 +1,4 @@
-package handlers
+package interactions
 
 import (
 	"errors"
@@ -15,6 +15,12 @@ func writeResponse(s *discordgo.Session, i *discordgo.InteractionCreate, params 
 	for _, param := range params {
 		param(webhookParams)
 	}
+
+	slog.Info("writing response",
+		"interaction", i.ID,
+		"content", webhookParams.Content,
+		"files", len(webhookParams.Files),
+		"embeds", len(webhookParams.Embeds))
 
 	s.Lock()
 	defer s.Unlock()
@@ -59,4 +65,33 @@ func getRESTErrorMessage(err error) (string, bool) {
 		return restErr.Message.Message, true
 	}
 	return "An unexpected error has occurred", true
+}
+
+func acknowledgeRequest(s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	s.Lock()
+	defer s.Unlock()
+
+	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+	})
+}
+
+// ensureFollowup checks if we already responded to the message. If we haven't, send an error response
+func ensureFollowup(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	s.Lock()
+	// check if we already responded
+	resp, err := s.InteractionResponse(i.Interaction)
+	if err != nil {
+		s.Unlock()
+		slog.Error("failed to get response message", "error", err)
+		return
+	}
+	s.Unlock()
+	if len(resp.Embeds) != 0 || len(resp.Attachments) != 0 || resp.Content != "" {
+		// we have already responded, return
+		return
+	}
+
+	// if we haven't made a response, something went wrong
+	writeMessage(s, i, "An unexpected error has occurred")
 }
