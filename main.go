@@ -3,12 +3,15 @@ package main
 import (
 	discordbot "github.com/Zach51920/discord-bot/bot"
 	"github.com/Zach51920/discord-bot/config"
+	"github.com/Zach51920/discord-bot/postgres"
 	"log/slog"
 	"os"
 )
 
 func main() {
 	initLogger()
+
+	postgres.RunMigrations()
 
 	// read config
 	cfg, err := config.Load("config.yaml")

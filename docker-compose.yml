@@ -1,5 +1,17 @@
 services:
 
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    environment:
+      POSTGRES_DB: discord_server_management
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
   ranna:
     image: "ghcr.io/ranna-go/ranna:latest"
     environment:
@@ -12,5 +24,8 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/var/opt/ranna:/var/opt/ranna"
     ports:
-      - "8080:8000"  # Map container's 8080 port to host's 8000 port
+      - "8080:8000"
     restart: "on-failure"
+
+volumes:
+  postgres_data:
