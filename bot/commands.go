@@ -8,6 +8,24 @@ import (
 
 var commands = []*discordgo.ApplicationCommand{
 	{
+		Name:        "coinflip",
+		Description: "Flip a coin",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "landed-tails",
+				Description: "What is the outcome if the coin lands on tails?",
+				Required:    false,
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "landed-heads",
+				Description: "What is the outcome if the coin lands on heads?",
+				Required:    false,
+			},
+		},
+	},
+	{
 		Name:        "talking-stick-start",
 		Description: "Initiate a talking stick session in your current voice channel",
 		Options: []*discordgo.ApplicationCommandOption{

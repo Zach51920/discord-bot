@@ -50,6 +50,8 @@ func (h *Handlers) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) 
 		h.Bedtime(s, i)
 	case "talking-stick-start":
 		h.TalkingStick(s, i)
+	case "coinflip":
+		h.CoinFlip(s, i)
 	default:
 		writeMessage(s, i, "Unknown request command")
 	}
@@ -113,6 +115,48 @@ func (h *Handlers) Bedtime(s *discordgo.Session, i *discordgo.InteractionCreate)
 		slog.Error("failed to send message", "error", err)
 		return
 	}
+}
+
+func (h *Handlers) CoinFlip(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	isHeads := rand.Intn(2) == 0
+	result := map[bool]struct {
+		prefix       string
+		defaultTitle string
+		optionKey    string
+		imageURL     string
+	}{
+		true: {
+			prefix:       "Heads: ",
+			defaultTitle: "The coin landed on heads",
+			optionKey:    "landed-heads",
+			imageURL:     "https://media1.tenor.com/m/9RsE4H_eUAEAAAAd/coinflip-heads.gif",
+		},
+		false: {
+			prefix:       "Tails: ",
+			defaultTitle: "The coin landed on tails",
+			optionKey:    "landed-tails",
+			imageURL:     "https://media1.tenor.com/m/C_cJS3GKhwcAAAAd/coinflip-tails.gif",
+		},
+	}[isHeads]
+
+	opts := NewRequestOptions(i.ApplicationCommandData().Options)
+	title, ok := opts.GetString(result.optionKey)
+	if ok {
+		title = result.prefix + title
+	} else {
+		title = result.defaultTitle
+	}
+
+	embed := &discordgo.MessageEmbed{
+		Type:  discordgo.EmbedTypeGifv,
+		Title: title,
+		Image: &discordgo.MessageEmbedImage{
+			URL:    result.imageURL,
+			Width:  240,
+			Height: 240,
+		},
+	}
+	writeResponse(s, i, withEmbeds([]*discordgo.MessageEmbed{embed}))
 }
 
 func (h *Handlers) TalkingStick(s *discordgo.Session, i *discordgo.InteractionCreate) {
