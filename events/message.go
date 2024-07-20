@@ -8,12 +8,38 @@ import (
 	"strings"
 )
 
+const codeExecEmoji = "⚡"
+
 func (h *Handler) HandleMessageCreate(s *discordgo.Session, e *discordgo.MessageCreate) {
+	slog.Debug("intercepted message create", "message", e.ID)
 	h.HandleMessage(s, e.Message)
 }
 
 func (h *Handler) HandleMessageUpdate(s *discordgo.Session, e *discordgo.MessageUpdate) {
+	slog.Debug("intercepted message update", "message", e.ID)
 	h.HandleMessage(s, e.Message)
+}
+
+func (h *Handler) HandleReactionAdd(s *discordgo.Session, e *discordgo.MessageReactionAdd) {
+	slog.Debug("intercepted reaction add", "message", e.MessageID)
+
+	// check if it's the code exec emoji
+	if e.Emoji.Name != codeExecEmoji {
+		return
+	}
+
+	slog.Debug("reaction is code exec emoji")
+	message, err := h.sess.ChannelMessage(e.ChannelID, e.MessageID)
+	if err != nil {
+		slog.Error("failed to get message", "message", e.MessageID)
+		return
+	}
+
+	if !messageHasReaction(codeExecEmoji, message.Reactions) {
+		return
+	}
+
+	h.executeCodeBlock(message, e.UserID)
 }
 
 func (h *Handler) HandleMessage(s *discordgo.Session, e *discordgo.Message) {
@@ -29,47 +55,93 @@ func (h *Handler) handleMessage(e *discordgo.Message) {
 	h.wg.Add(1)
 	defer h.wg.Done()
 
-	// check if the message is a code block
-	block, isCode := parseCodeBlock(e.Content)
-	if !isCode {
+	if isCodeBlock(e.Content) {
+		h.handleCodeBlock(e)
+		return
+	}
+	slog.Debug("not a message of interest, discarding...")
+	return
+}
+
+func (h *Handler) handleCodeBlock(e *discordgo.Message) {
+	// check what the code execution mode is for this channel
+	var execMode string
+	query := `SELECT COALESCE(
+				(SELECT code_exec::text FROM channels WHERE guild_id = $1 AND channel_id = $2),
+				'DISABLED') as code_exec`
+	if err := h.db.Get(&execMode, query, e.GuildID, e.ChannelID); err != nil {
+		slog.Error("failed to get code execution mode", "message", e.ID, "error", err)
+		return
+	}
+	switch execMode {
+	case "DISABLED":
+		slog.Debug("code execution is disabled for this channel", "channel", e.ChannelID)
+		return
+	case "AUTO":
+		h.executeCodeBlock(e, e.Author.ID)
+		return
+	case "MANUAL":
+		if err := h.sess.MessageReactionAdd(e.ChannelID, e.ID, codeExecEmoji); err != nil {
+			slog.Error("failed to acknowledge code block", "message", e.ID, "error", err)
+		}
+		return
+	}
+}
+
+func (h *Handler) executeCodeBlock(e *discordgo.Message, requestor string) {
+	slog.Debug("executing code block", "message", e.ID)
+
+	// check if the requestor is authorized to execute code
+	member, err := h.sess.GuildMember(e.GuildID, requestor)
+	if err != nil {
+		slog.Error("failed to get member", "message", e.ID, "error", err)
+		h.writeReply(e, "Unable to execute code block: an unexpected error has occurred")
+		return
+	}
+	// todo: this should check the database for what roles are 'developer' roles
+	if !hasDeveloperRole(member.Roles) {
+		h.writeReply(e, "Unable to execute code block: invalid permissions")
 		return
 	}
 
-	if !h.isAuthorizedToExecuteCode(e) {
+	block, ok := parseCodeBlock(e.Content)
+	if !ok {
+		slog.Warn("message is not a code block... how'd it make it this far?", "message", e.ID)
 		return
 	}
 
 	// all checks passed, execute the code
 	res, err := h.rClient.Exec(block)
 	if err != nil {
-		slog.Error("code execution failed", "message_id", e.ID, "error", err)
+		slog.Error("code execution failed", "message", e.ID, "error", err)
+		h.writeReply(e, "Unable to execute code block: an unexpected error has occurred")
 		return
 	}
-	embed := mapCodeBlock(block, res)
 
+	embed := mapCodeBlock(block, res)
 	if _, err = h.sess.ChannelMessageSendEmbedReply(e.ChannelID, embed, e.Reference()); err != nil {
-		slog.Error("failed to send reply", "message_id", e.ID, "error", err)
+		slog.Error("failed to send reply", "message", e.ID, "error", err)
 		return
 	}
-	return
 }
 
-func (h *Handler) isAuthorizedToExecuteCode(e *discordgo.Message) bool {
-	// todo: check if the developer assistant has been added to the channel
-	// this will require some type of db to keep track of which channels it has access to
+func (h *Handler) writeReply(e *discordgo.Message, content string) {
+	h.sess.Lock()
+	defer h.sess.Unlock()
 
-	// check if the user has the developer role
-	member, err := h.sess.GuildMember(e.GuildID, e.Author.ID)
-	if err != nil {
-		slog.Error("failed to get member", "message_id", e.ID, "error", err)
-		return false
+	if _, err := h.sess.ChannelMessageSendReply(e.ChannelID, content, e.Reference()); err != nil {
+		slog.Error("failed to send message reply", "message", e.ID, "error", err)
+		return
 	}
-	if !hasDeveloperRole(member.Roles) {
-		slog.Debug("unable to execute code", "message_id", e.ID, "error", "not a developer")
-		return false
-	}
+}
 
-	return true
+func messageHasReaction(emoji string, reactions []*discordgo.MessageReactions) bool {
+	for _, reaction := range reactions {
+		if reaction.Emoji.Name == emoji && reaction.Me {
+			return true
+		}
+	}
+	return false
 }
 
 func mapCodeBlock(block models.ExecutionRequest, res models.ExecutionResponse) *discordgo.MessageEmbed {
@@ -100,6 +172,19 @@ func mapCodeBlock(block models.ExecutionRequest, res models.ExecutionResponse) *
 			},
 		},
 	}
+}
+
+func isCodeBlock(content string) bool {
+	spl := strings.Split(content, "```")
+	if len(spl) < 3 {
+		return false
+	}
+
+	first := strings.Index(spl[1], "\n")
+	if first < 0 || len(spl[1]) < first {
+		return false
+	}
+	return true
 }
 
 func parseCodeBlock(content string) (models.ExecutionRequest, bool) {

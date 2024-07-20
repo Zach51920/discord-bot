@@ -98,6 +98,7 @@ func (b *Bot) init() error {
 	}
 	b.RegisterCommands()
 	b.RegisterHandlers()
+	b.RegisterIntents()
 	return nil
 }
 

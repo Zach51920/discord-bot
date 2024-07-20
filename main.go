@@ -36,5 +36,4 @@ func initLogger() {
 		Level: lvl,
 	}))
 	slog.SetDefault(logger)
-
 }

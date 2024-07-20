@@ -16,6 +16,6 @@ permissions:
       - "1263639387623915641"
 
 ranna:
-  endpoint: "http://localhost:8000"
-  version: ""
-  user_agent: ""
+  endpoint: "http://localhost:8080"
+#  version: ""
+#  user_agent: ""

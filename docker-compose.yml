@@ -24,7 +24,7 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/var/opt/ranna:/var/opt/ranna"
     ports:
-      - "8080:8000"
+      - "8080:8080"
     restart: "on-failure"
 
 volumes:
