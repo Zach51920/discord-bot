@@ -8,6 +8,18 @@ import (
 
 var commands = []*discordgo.ApplicationCommand{
 	{
+		Name:        "talking-stick-start",
+		Description: "Initiate a talking stick session in your current voice channel",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionNumber,
+				Name:        "duration",
+				Description: "How long does each user have the talking stick (seconds)",
+				Required:    false,
+			},
+		},
+	},
+	{
 		Name:        "yt-download",
 		Description: "Download a YouTube video.",
 		Options: []*discordgo.ApplicationCommandOption{

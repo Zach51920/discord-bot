@@ -21,6 +21,13 @@ func (opts RequestOptions) GetString(key string) (string, bool) {
 	return "", false
 }
 
+func (opts RequestOptions) GetInt(key string) (int, bool) {
+	if opt, ok := opts[key]; ok && opt.Type == discordgo.ApplicationCommandOptionNumber {
+		return int(opt.Value.(float64)), true
+	}
+	return -1, false
+}
+
 func (opts RequestOptions) GetStringPtr(key string) *string {
 	if val, ok := opts.GetString(key); ok {
 		return &val
