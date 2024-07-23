@@ -7,9 +7,8 @@ import (
 )
 
 type Config struct {
-	Bot         BotConfig   `yaml:"bot"`
-	Permissions Permissions `yaml:"permissions"`
-	Ranna       RannaConfig `yaml:"ranna"`
+	Bot   BotConfig   `yaml:"bot"`
+	Ranna RannaConfig `yaml:"ranna"`
 }
 
 type BotConfig struct {
@@ -18,14 +17,6 @@ type BotConfig struct {
 	LogLevel       string   `yaml:"log_level"`
 	Alerts         bool     `yaml:"alerts"`
 	Commands       []string `yaml:"commands"`
-}
-
-type Permissions struct {
-	CodeExecutor CodeExecutorConfig `yaml:"code_executor"`
-}
-
-type CodeExecutorConfig struct {
-	Roles []string `yaml:"roles"`
 }
 
 type RannaConfig struct {

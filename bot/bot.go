@@ -86,7 +86,7 @@ func (b *Bot) init() error {
 	// init postgres provider
 	pqConfig := postgres.Config{PostgresURL: os.Getenv("OVERLORD_DB_URL")}
 	if b.dbProvider, err = postgres.NewProvider(pqConfig); err != nil {
-		return fmt.Errorf("create postgres provider")
+		return fmt.Errorf("create postgres provider: %w", err)
 	}
 
 	// init bot

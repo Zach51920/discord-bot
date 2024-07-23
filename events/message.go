@@ -22,23 +22,22 @@ func (h *Handler) HandleMessageUpdate(s *discordgo.Session, e *discordgo.Message
 
 func (h *Handler) HandleReactionAdd(s *discordgo.Session, e *discordgo.MessageReactionAdd) {
 	slog.Debug("intercepted reaction add", "message", e.MessageID)
-
-	// check if it's the code exec emoji
-	if e.Emoji.Name != codeExecEmoji {
+	// if the code exec emoji was added by a non-bot user, continue
+	if e.Emoji.Name != codeExecEmoji || e.Member.User.Bot {
 		return
 	}
 
-	slog.Debug("reaction is code exec emoji")
 	message, err := h.sess.ChannelMessage(e.ChannelID, e.MessageID)
 	if err != nil {
 		slog.Error("failed to get message", "message", e.MessageID)
 		return
 	}
+	message.GuildID = e.GuildID // this is null for some reason :/
 
+	// check if the bot already acknowledged the message by adding its emoji
 	if !messageHasReaction(codeExecEmoji, message.Reactions) {
 		return
 	}
-
 	h.executeCodeBlock(message, e.UserID)
 }
 
@@ -94,7 +93,7 @@ func (h *Handler) executeCodeBlock(e *discordgo.Message, requestor string) {
 	// check if the requestor is authorized to execute code
 	member, err := h.sess.GuildMember(e.GuildID, requestor)
 	if err != nil {
-		slog.Error("failed to get member", "message", e.ID, "error", err)
+		slog.Error("failed to get member", "message", e.ID, "guild_id", e.GuildID, "requestor", requestor, "error", err)
 		h.writeReply(e, "Unable to execute code block: an unexpected error has occurred")
 		return
 	}

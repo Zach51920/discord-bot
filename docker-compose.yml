@@ -1,5 +1,17 @@
 services:
 
+  overlord:
+    build:
+      dockerfile: Dockerfile
+      context: .
+      args:
+        BOT_TOKEN: ${BOT_TOKEN}
+        GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+    container_name: overlord_bot
+    environment:
+      MIGRATION_DB_URL: postgres://root:password@postgres:5432/discord_server_management?sslmode=disable
+      OVERLORD_DB_URL: postgres://overlord_bot:password@postgres:5432/discord_server_management?sslmode=disable
+
   postgres:
     image: postgres:latest
     container_name: postgres
@@ -14,6 +26,7 @@ services:
 
   ranna:
     image: "ghcr.io/ranna-go/ranna:latest"
+    container_name: ranna
     environment:
       HOSTROOTDIR: "/var/opt/ranna"
       API.MAXOUTPUTLEN: "1M"
