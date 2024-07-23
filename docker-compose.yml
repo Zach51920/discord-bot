@@ -1,0 +1,16 @@
+services:
+
+  ranna:
+    image: "ghcr.io/ranna-go/ranna:latest"
+    environment:
+      HOSTROOTDIR: "/var/opt/ranna"
+      API.MAXOUTPUTLEN: "1M"
+      SANDBOX.MEMORY: "50M"
+      SANDBOX.TIMEOUTSECONDS: "20"
+      SANDBOX.STREAMBUFFERCAP: "1M"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "/var/opt/ranna:/var/opt/ranna"
+    ports:
+      - "8080:8000"  # Map container's 8080 port to host's 8000 port
+    restart: "on-failure"

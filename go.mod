@@ -7,6 +7,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/kkdai/youtube/v2 v2.10.0
 	github.com/ranna-go/ranna v0.3.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

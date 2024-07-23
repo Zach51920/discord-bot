@@ -1,7 +1,6 @@
 package bot
 
 import (
-	"github.com/Zach51920/discord-bot/config"
 	"github.com/bwmarrin/discordgo"
 	"log/slog"
 )
@@ -106,7 +105,7 @@ func (b *Bot) RegisterCommands() {
 }
 
 func (b *Bot) overwriteCommands(guildID, guildName string) {
-	applicationID := config.GetString("APPLICATION_ID")
+	applicationID := b.config.Bot.ApplicationID
 	if _, err := b.sess.ApplicationCommandBulkOverwrite(applicationID, guildID, commands); err != nil {
 		slog.Error("failed to overwrite commands", "error", err, "guild", guildName)
 	}

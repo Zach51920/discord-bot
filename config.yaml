@@ -1,0 +1,21 @@
+bot:
+  application_id: "1206364463079628862"
+  alert_channel_id: "1261531470930116712"
+  log_level: "debug"
+  alerts: true
+  commands:
+    - ""
+    - "yt-search"
+    - "yt-download"
+    - "bedtime-ban"
+
+permissions:
+  code_executor:
+    roles:
+      - "1263315347344457851"
+      - "1263639387623915641"
+
+ranna:
+  endpoint: "http://localhost:8000"
+  version: ""
+  user_agent: ""
