@@ -1,15 +1,21 @@
 package bot
 
 import (
+	"github.com/Zach51920/discord-bot/events"
 	"github.com/Zach51920/discord-bot/interactions"
 	"github.com/bwmarrin/discordgo"
 )
 
 func (b *Bot) RegisterHandlers() {
 	interaction := interactions.New()
-	b.closers = append(b.closers, interaction)
+	event := events.New(b.sess, b.rClient, b.dbProvider.Get())
+
+	b.closers = append(b.closers, interaction, event)
 
 	b.sess.AddHandler(interaction.Handle)
+	b.sess.AddHandler(event.HandleMessageCreate)
+	b.sess.AddHandler(event.HandleMessageUpdate)
+	b.sess.AddHandler(event.HandleReactionAdd)
 	b.sess.AddHandler(b.handleLeaveGuild)
 	b.sess.AddHandler(b.handleJoinGuild)
 }
