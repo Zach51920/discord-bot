@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/Zach51920/discord-bot/config"
+	"github.com/Zach51920/discord-bot/postgres"
 	"github.com/bwmarrin/discordgo"
 	ranna "github.com/ranna-go/ranna/pkg/client"
 	"io"
@@ -18,8 +19,9 @@ import (
 type Bot struct {
 	config config.Config
 
-	sess    *discordgo.Session
-	rClient ranna.Client
+	sess       *discordgo.Session
+	dbProvider *postgres.Provider
+	rClient    ranna.Client
 
 	closers []io.Closer
 	wg      sync.WaitGroup
@@ -80,6 +82,12 @@ func (b *Bot) init() error {
 		return fmt.Errorf("create ranna: %w", err)
 	}
 	b.rClient = rClient
+
+	// init postgres provider
+	pqConfig := postgres.Config{PostgresURL: os.Getenv("OVERLORD_DB_URL")}
+	if b.dbProvider, err = postgres.NewProvider(pqConfig); err != nil {
+		return fmt.Errorf("create postgres provider")
+	}
 
 	// init bot
 	token := config.GetString("BOT_TOKEN")
