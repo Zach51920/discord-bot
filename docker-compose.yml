@@ -4,13 +4,13 @@ services:
     build:
       dockerfile: Dockerfile
       context: .
-      args:
-        BOT_TOKEN: ${BOT_TOKEN}
-        GOOGLE_API_KEY: ${GOOGLE_API_KEY}
     container_name: overlord_bot
-    environment:
-      MIGRATION_DB_URL: postgres://root:password@postgres:5432/discord_server_management?sslmode=disable
-      OVERLORD_DB_URL: postgres://overlord_bot:password@postgres:5432/discord_server_management?sslmode=disable
+    depends_on:
+      - postgres
+    restart: on-failure:3
+    env_file: .docker.env
+    volumes:
+      - ./config.docker.yaml:/app/config.yaml
 
   postgres:
     image: postgres:latest
@@ -20,7 +20,7 @@ services:
       POSTGRES_USER: root
       POSTGRES_PASSWORD: password
     ports:
-      - "5432:5432"
+      - 5432:5432
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -33,12 +33,13 @@ services:
       SANDBOX.MEMORY: "50M"
       SANDBOX.TIMEOUTSECONDS: "20"
       SANDBOX.STREAMBUFFERCAP: "1M"
+      RANNA_DEBUG: true
+    ports:
+      - 8080:8080
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/var/opt/ranna:/var/opt/ranna"
-    ports:
-      - "8080:8080"
-    restart: "on-failure"
+    restart: on-failure:3
 
 volumes:
   postgres_data:

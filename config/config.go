@@ -7,22 +7,28 @@ import (
 )
 
 type Config struct {
-	Bot   BotConfig   `yaml:"bot"`
-	Ranna RannaConfig `yaml:"ranna"`
+	Bot    BotConfig    `yaml:"bot"`
+	Ranna  RannaConfig  `yaml:"ranna"`
+	Logger LoggerConfig `yaml:"logger"`
 }
 
 type BotConfig struct {
 	ApplicationID  string   `yaml:"application_id"`
 	AlertChannelID string   `yaml:"alert_channel_id"`
-	LogLevel       string   `yaml:"log_level"`
 	Alerts         bool     `yaml:"alerts"`
-	Commands       []string `yaml:"commands"`
+	Intents        []string `yaml:"intents"`
 }
 
 type RannaConfig struct {
 	Endpoint  string `yaml:"endpoint"`
 	Version   string `yaml:"version"`
 	UserAgent string `yaml:"user_agent"`
+}
+
+type LoggerConfig struct {
+	Level   string `yaml:"level"`
+	Outfile string `yaml:"outfile"`
+	Format  string `yaml:"format"`
 }
 
 func Load(filepath string) (Config, error) {

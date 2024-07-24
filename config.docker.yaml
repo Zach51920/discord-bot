@@ -1,10 +1,21 @@
 bot:
-  application_id: "1206364463079628862"
-  alert_channel_id: "1261531470930116712"
-  log_level: "info"
+  application_id: 1206364463079628862
+  alert_channel_id: 1261531470930116712
   alerts: true
+  intents:
+    - guilds
+    - guild_members
+    - guild_bans
+    - guild_presences
+    - guild_messages
+    - message_content
+
+logger:
+  level: info
+  outfile:
+  format:
 
 ranna:
-  endpoint: "http://ranna:8080"
-#  version: ""
-#  user_agent: ""
+  endpoint: http://ranna:8080
+  version:
+  user_agent: Overlord/1.0
