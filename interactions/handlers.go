@@ -15,7 +15,7 @@ type Handlers struct {
 	ytClient *youtube.Client
 	mu       sync.Mutex
 
-	talkingStickChannels map[string]bool
+	talkingStickChannels map[string]*TalkingStickSess
 	shutdownCh           chan struct{}
 }
 
@@ -24,7 +24,7 @@ func New() *Handlers {
 		ytClient:             youtube.New(),
 		wg:                   sync.WaitGroup{},
 		shutdownCh:           make(chan struct{}),
-		talkingStickChannels: make(map[string]bool)}
+		talkingStickChannels: make(map[string]*TalkingStickSess)}
 }
 
 func (h *Handlers) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -39,22 +39,21 @@ func (h *Handlers) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) 
 	}
 	defer ensureFollowup(s, i)
 
-	// handle the request
-	data := i.ApplicationCommandData()
-	switch data.Name {
-	case "yt-download":
-		h.Download(s, i)
-	case "yt-search":
-		h.Search(s, i)
-	case "bedtime-ban":
-		h.Bedtime(s, i)
-	case "talking-stick-start":
-		h.TalkingStick(s, i)
-	case "coinflip":
-		h.CoinFlip(s, i)
-	default:
-		writeMessage(s, i, "Unknown request command")
+	// execute the command
+	commands := map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
+		"yt-download":         h.Download,
+		"yt-search":           h.Search,
+		"bedtime-ban":         h.Bedtime,
+		"talking-stick-start": h.TalkingStick,
+		"coinflip":            h.CoinFlip,
 	}
+	data := i.ApplicationCommandData()
+	cmd, ok := commands[data.Name]
+	if !ok {
+		writeMessage(s, i, "Unknown request command")
+		return
+	}
+	cmd(s, i)
 }
 
 func (h *Handlers) Search(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -161,178 +160,30 @@ func (h *Handlers) CoinFlip(s *discordgo.Session, i *discordgo.InteractionCreate
 
 func (h *Handlers) TalkingStick(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	opts := NewRequestOptions(i.ApplicationCommandData().Options)
-	turnDuration, ok := opts.GetInt("duration")
-	if !ok {
-		turnDuration = 15
-	}
+	turnDuration := opts.GetIntDefault("duration", 15)
 	duration := time.Duration(turnDuration) * time.Second
 
-	// get the guilds active voice members
-	userID := i.Member.User.ID
-	vs, err := s.State.VoiceState(i.GuildID, userID)
+	// get the channels active voice members
+	vs, err := getVoiceState(s, i.GuildID, i.Member.User.ID)
 	if err != nil {
-		slog.Error("failed to get voice state", "user_id", userID)
-		return
-	}
-	if vs.ChannelID == "" || vs == nil {
-		writeMessage(s, i, "You need to be in a voice channel to use this command")
+		writeMessage(s, i, "Failed to get voice state. Are you in a voice channel?")
 		return
 	}
 
 	// check if talking stick is currently being run in the requested channel
-	if h.isRunningTalkingStick(vs.ChannelID) {
+	if h.getTalkingStickSess(vs.ChannelID) != nil {
 		writeMessage(s, i, "The talking stick is already being passed around your voice channel")
 		return
 	}
 
-	slog.Debug("getting members for voice channel", "channel_id", vs.ChannelID)
-	members, err := getVoiceChannelMembers(s, i.GuildID, vs.ChannelID)
-	if err != nil {
-		slog.Error("failed to get voice channel members", "channel_id", vs.ChannelID, "error", err)
-		return
-	}
-	if len(members) == 0 {
-		writeMessage(s, i, "The channel has no active voice members")
-		return
-	}
-
+	slog.Debug("creating talking stick session for channel", "channel_id", vs.ChannelID)
+	tss := NewStickSession(s, vs.GuildID, vs.ChannelID, duration)
+	go func() {
+		h.addTalkingStickSess(tss)
+		defer h.removeTalkingStickSess(tss.channelID)
+		tss.Start(s)
+	}()
 	writeMessage(s, i, "Talking stick initiated")
-	go h.startTalkingStick(s, members, vs.ChannelID, duration)
-}
-
-func (h *Handlers) startTalkingStick(s *discordgo.Session, members []*discordgo.Member, channelID string, duration time.Duration) {
-	h.wg.Add(1)
-	defer h.wg.Done()
-
-	h.addTalkingStickChannel(channelID)
-	defer h.removeTalkingStickChannel(channelID)
-
-	// create a channel for messages, so we can delete them all later
-	messageCh := make(chan *discordgo.Message, len(members)+5)
-	defer h.cleanupMessages(s, messageCh)
-
-	ticker := time.NewTicker(duration)
-	defer ticker.Stop()
-
-	shuffleMembers(members)
-	h.passTalkingStick(s, channelID, members[0], true, messageCh)
-	for idx := 1; idx <= len(members); idx++ {
-		select {
-		case <-h.shutdownCh:
-			h.removePrioritySpeaker(s, channelID, members[idx].User.ID)
-			return
-		case <-ticker.C:
-			// have to do it like this so the last member gets a turn
-			if idx == len(members) {
-				break
-			}
-			currentMember := members[idx]
-			h.passTalkingStick(s, channelID, currentMember, false, messageCh)
-		}
-	}
-	if len(members) > 0 {
-		s.Lock()
-		ttsMessage, err := s.ChannelMessageSendTTS(channelID, "The talking stick session has been terminated")
-		if err != nil {
-			s.Unlock()
-			slog.Error("failed to send tts message", "channel_id", channelID, "error", err)
-		}
-		s.Unlock()
-		messageCh <- ttsMessage
-		h.removePrioritySpeaker(s, channelID, members[len(members)-1].User.ID)
-	}
-}
-
-func (h *Handlers) passTalkingStick(s *discordgo.Session, channelID string, member *discordgo.Member, isFirst bool, ch chan *discordgo.Message) {
-	slog.Debug("passing the talking stick", "user_id", member.User.ID)
-	msg := fmt.Sprintf("Passing the talking stick to %s", member.User.Mention())
-	if isFirst {
-		msg = fmt.Sprintf("%s has the talking stick", member.User.Mention())
-	}
-
-	s.Lock()
-	defer s.Unlock()
-	// announce the passing of the talking stick
-	ttsMessage, err := s.ChannelMessageSendTTS(channelID, msg)
-	if err != nil {
-		slog.Error("failed to send tts message", "channel_id", channelID, "error", err)
-	}
-	ch <- ttsMessage
-
-	if err = s.ChannelPermissionSet(channelID, member.User.ID,
-		discordgo.PermissionOverwriteTypeMember, discordgo.PermissionVoicePrioritySpeaker, 0); err != nil {
-		slog.Error("Failed to set priority speaker", "error", err, "user", member.User.Username)
-	}
-}
-
-func (h *Handlers) removePrioritySpeaker(s *discordgo.Session, channelID, userID string) {
-	if err := s.ChannelPermissionSet(channelID, userID,
-		discordgo.PermissionOverwriteTypeMember, 0, discordgo.PermissionVoicePrioritySpeaker); err != nil {
-		slog.Error("Failed to remove priority speaker", "error", err, "user_id", userID)
-	}
-}
-
-func (h *Handlers) cleanupMessages(s *discordgo.Session, ch chan *discordgo.Message) {
-	for message := range ch {
-		// if the message is a text to speech message, make sure we waited a few seconds for it to finish announcing it
-		if message.TTS && time.Since(message.Timestamp) < 5*time.Second {
-			duration := 5*time.Second - time.Since(message.Timestamp)
-			slog.Debug("waiting for TTS message to finish announcing", "message_id", message.ID, "duration", duration.String())
-			timer := time.NewTimer(duration)
-			<-timer.C
-		}
-		slog.Debug("deleting message", "message_id", message.ID)
-		s.Lock()
-		if err := s.ChannelMessageDelete(message.ChannelID, message.ID); err != nil {
-			slog.Error("failed to delete message", "message_id", err)
-		}
-		s.Unlock()
-	}
-}
-
-func (h *Handlers) addTalkingStickChannel(channelID string) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.talkingStickChannels[channelID] = true
-}
-
-func (h *Handlers) removeTalkingStickChannel(channelID string) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	delete(h.talkingStickChannels, channelID)
-}
-
-func (h *Handlers) isRunningTalkingStick(channelID string) bool {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return h.talkingStickChannels[channelID]
-}
-
-func getVoiceChannelMembers(s *discordgo.Session, guildID, channelID string) ([]*discordgo.Member, error) {
-	guild, err := s.State.Guild(guildID)
-	if err != nil {
-		return nil, fmt.Errorf("error accessing guild state: %w", err)
-	}
-
-	var members []*discordgo.Member
-	for _, vs := range guild.VoiceStates {
-		if vs.ChannelID == channelID {
-			member, err := s.GuildMember(guildID, vs.UserID)
-			if err != nil {
-				slog.Error("failed to fetch member", "user_id", vs.UserID, "error", err)
-				continue
-			}
-			members = append(members, member)
-		}
-	}
-	return members, nil
-}
-
-func shuffleMembers(members []*discordgo.Member) {
-	for i := len(members) - 1; i > 0; i-- {
-		j := rand.Intn(i + 1)
-		members[i], members[j] = members[j], members[i]
-	}
 }
 
 func (h *Handlers) getVideoIDFromRequest(opts RequestOptions) (string, error) {

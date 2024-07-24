@@ -28,6 +28,13 @@ func (opts RequestOptions) GetInt(key string) (int, bool) {
 	return -1, false
 }
 
+func (opts RequestOptions) GetIntDefault(key string, def int) int {
+	if opt, ok := opts[key]; ok && opt.Type == discordgo.ApplicationCommandOptionNumber {
+		return int(opt.Value.(float64))
+	}
+	return def
+}
+
 func (opts RequestOptions) GetStringPtr(key string) *string {
 	if val, ok := opts.GetString(key); ok {
 		return &val
