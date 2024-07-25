@@ -25,13 +25,13 @@ var commands = []*discordgo.ApplicationCommand{
 		},
 	},
 	{
-		Name:        "talking-stick-start",
-		Description: "Initiate a talking stick session in your current voice channel",
+		Name:        "talking-stick",
+		Description: "Manage a talking stick session in your current voice channel",
 		Options: []*discordgo.ApplicationCommandOption{
 			{
-				Type:        discordgo.ApplicationCommandOptionNumber,
+				Type:        discordgo.ApplicationCommandOptionInteger,
 				Name:        "duration",
-				Description: "How long does each user have the talking stick (seconds)",
+				Description: "Duration each user holds the talking stick (in seconds, default: 15)",
 				Required:    false,
 			},
 		},
@@ -68,7 +68,7 @@ var commands = []*discordgo.ApplicationCommand{
 	},
 	{
 		Name:        "bedtime-ban",
-		Description: "Handle a \"baby rager\" by putting them to bed.",
+		Description: "HandleC a \"baby rager\" by putting them to bed.",
 		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionUser,
