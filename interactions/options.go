@@ -22,7 +22,7 @@ func (opts RequestOptions) GetString(key string) (string, bool) {
 }
 
 func (opts RequestOptions) GetInt(key string) (int, bool) {
-	if opt, ok := opts[key]; ok && opt.Type == discordgo.ApplicationCommandOptionNumber {
+	if opt, ok := opts[key]; ok && opt.Type == discordgo.ApplicationCommandOptionInteger {
 		return int(opt.Value.(int64)), true
 	}
 	return -1, false
@@ -43,13 +43,13 @@ func (opts RequestOptions) GetStringPtr(key string) *string {
 	return nil
 }
 
-func (opts RequestOptions) GetSubcommand() string {
+func (opts RequestOptions) GetSubcommand() (string, RequestOptions) {
 	for _, v := range opts {
 		if v.Type == discordgo.ApplicationCommandOptionSubCommand {
-			return v.Name
+			return v.Name, NewRequestOptions(v.Options)
 		}
 	}
-	return ""
+	return "", nil
 }
 
 func (opts RequestOptions) GetUser(s *discordgo.Session) (*discordgo.User, bool) {

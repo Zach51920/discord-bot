@@ -53,3 +53,20 @@ func newMemberList(members []*discordgo.Member) *tsMember {
 	current.next = head //  make the list circular
 	return head
 }
+
+func getMember(head *tsMember, target string) (*tsMember, bool) {
+	if head == nil {
+		return nil, false
+	}
+
+	current := head
+	for {
+		if current.data.User.ID == target {
+			return current, true
+		}
+		current = current.next
+		if current == head {
+			return nil, false
+		}
+	}
+}

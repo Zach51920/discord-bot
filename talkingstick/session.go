@@ -8,11 +8,13 @@ import (
 	"time"
 )
 
-type Session interface {
+type session interface {
 	Start()
-	End()
-	Pass() bool
+	Stop()
 	Close()
+	Pass(target *tsMember) bool
+	Running() bool
+	Active() *tsMember
 }
 
 type tsSession struct {
@@ -25,43 +27,52 @@ type tsSession struct {
 	ticker   *time.Ticker
 	messages []*discordgo.Message
 
-	mu         sync.Mutex
-	shutdownCh chan struct{}
+	mu     sync.Mutex
+	stopCh chan struct{}
 
-	// selfDestruct removes the session from the session manager
-	selfDestruct func()
+	isRunning bool
 }
 
-func newTSSession(s *discordgo.Session, channelID string, duration time.Duration, members *tsMember, selfDestructFn func()) *tsSession {
+func newTSSession(s *discordgo.Session, channelID string, duration time.Duration, members *tsMember) *tsSession {
 	return &tsSession{
-		sess:         s,
-		channelID:    channelID,
-		active:       members,
-		prev:         nil,
-		duration:     duration,
-		ticker:       time.NewTicker(duration),
-		messages:     make([]*discordgo.Message, 0),
-		mu:           sync.Mutex{},
-		shutdownCh:   make(chan struct{}),
-		selfDestruct: selfDestructFn,
+		sess:      s,
+		channelID: channelID,
+		active:    members,
+		duration:  duration,
+		ticker:    time.NewTicker(duration),
+		messages:  make([]*discordgo.Message, 0),
+		mu:        sync.Mutex{},
+		stopCh:    make(chan struct{}),
 	}
 }
 
 func (tss *tsSession) Start() {
-	tss.Pass()
+	tss.SetRunning(true)
+	defer tss.SetRunning(false)
+
+	// recreate the stopCh
+	tss.stopCh = make(chan struct{})
+
+	tss.Pass(nil)
 	for {
 		select {
-		case <-tss.shutdownCh:
+		case <-tss.stopCh:
 			return
 		case <-tss.ticker.C:
-			if !tss.Pass() {
+			if !tss.Pass(nil) {
 				return
 			}
 		}
 	}
 }
 
-func (tss *tsSession) Pass() bool {
+func (tss *tsSession) Pass(target *tsMember) bool {
+	tss.prev = tss.active
+	if target != nil {
+		tss.active = target
+	} else {
+		tss.active = tss.active.next
+	}
 	if tss.active == nil {
 		return false
 	}
@@ -82,19 +93,11 @@ func (tss *tsSession) Pass() bool {
 		slog.Error("Failed to set priority speaker", "error", err, "user", tss.active.data.User.Username)
 	}
 
-	tss.prev = tss.active
-	tss.active = tss.active.next
 	tss.ticker.Reset(tss.duration)
 	return true
 }
 
-func (tss *tsSession) End() {
-	close(tss.shutdownCh)
-}
-
 func (tss *tsSession) Close() {
-	defer tss.selfDestruct()
-
 	tss.mu.Lock()
 	defer tss.mu.Unlock()
 
@@ -122,4 +125,26 @@ func (tss *tsSession) Close() {
 			slog.Error("failed to delete message", "message_id", err)
 		}
 	}
+}
+
+func (tss *tsSession) Stop() {
+	if tss.Running() {
+		close(tss.stopCh)
+	}
+}
+
+func (tss *tsSession) Running() bool {
+	tss.mu.Lock()
+	defer tss.mu.Unlock()
+	return tss.isRunning
+}
+
+func (tss *tsSession) SetRunning(isRunning bool) {
+	tss.mu.Lock()
+	defer tss.mu.Unlock()
+	tss.isRunning = isRunning
+}
+
+func (tss *tsSession) Active() *tsMember {
+	return tss.active
 }

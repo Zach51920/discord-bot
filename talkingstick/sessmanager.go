@@ -8,24 +8,44 @@ import (
 	"time"
 )
 
+var ErrNoSession = errors.New("no session exists for channel")
+var ErrSessionExists = errors.New("a session already exists for channel")
+var ErrSessionInactive = errors.New("the session is inactive")
+var ErrDuplicateMember = errors.New("user is already a member of the session")
+var ErrMemberNotInChannel = errors.New("user is not a member of the current voice channel")
+var ErrMemberNotInSession = errors.New("user is not a member of the session")
+
 type SessionManager interface {
-	Run(channelID string) error
-	Get(channelID string) Session
+	// Create a new talking stick session. This does NOT automatically start the session
 	Create(guildID, channelID string, duration time.Duration) error
+
+	// Start the talking stick session for the specified channel. If no session exists, an error is returned
+	Start(channelID string) error
+
+	// Pass the talking stick to a specified user
+	Pass(channelID, userID string) error
+
+	// Skip the remainder of the current members turn
+	Skip(channelID string) error
+
+	// Pause the talking stick session if it's ongoing. If no session exists, an error is returned
+
+	// AddMember adds a member to the talking stick session in a random location
+
+	// RemoveMember removes a member from the talking stick session
+
+	// End the session for the specified channel
+	End(channelID string) error
 }
 
 type SessManager struct {
 	mu         *sync.Mutex
 	sess       *discordgo.Session
-	tsSessions map[string]*tsSession
+	tsSessions map[string]session
 }
 
 func NewSessionManager(s *discordgo.Session) SessionManager {
-	return &SessManager{sess: s, mu: &sync.Mutex{}, tsSessions: make(map[string]*tsSession)}
-}
-
-func (s *SessManager) Get(channelID string) Session {
-	return s.getSession(channelID)
+	return &SessManager{sess: s, mu: &sync.Mutex{}, tsSessions: make(map[string]session)}
 }
 
 func (s *SessManager) Create(guildID, channelID string, duration time.Duration) error {
@@ -33,7 +53,7 @@ func (s *SessManager) Create(guildID, channelID string, duration time.Duration) 
 
 	// check if a session is already ongoing
 	if tss := s.getSession(channelID); tss != nil {
-		return errors.New("There is already an active talking stick session in your voice channel")
+		return ErrSessionExists
 	}
 
 	// get the channel members
@@ -42,26 +62,63 @@ func (s *SessManager) Create(guildID, channelID string, duration time.Duration) 
 	memList := newMemberList(mem)
 
 	// create the session
-	tss := newTSSession(s.sess, channelID, duration, memList, s.getSelfDestructFn(channelID))
+	tss := newTSSession(s.sess, channelID, duration, memList)
 	s.addSession(tss)
 	return nil
 }
 
-func (s *SessManager) Run(channelID string) error {
-	slog.Debug("running talking stick session", "channel_id", channelID)
-
+func (s *SessManager) Start(channelID string) error {
 	tss := s.getSession(channelID)
 	if tss == nil {
-		return errors.New("There are no active talking stick sessions in your current channel")
+		return ErrNoSession
 	}
-	go func() {
-		defer tss.Close()
-		tss.Start()
-	}()
+	// start the session if it's not currently running
+	if !tss.Running() {
+		go tss.Start()
+	}
 	return nil
 }
 
-func (s *SessManager) getSession(channelID string) *tsSession {
+func (s *SessManager) End(channelID string) error {
+	tss := s.getSession(channelID)
+	if tss == nil {
+		return ErrNoSession
+	}
+	tss.Stop()
+	tss.Close()
+	s.delSession(channelID)
+	return nil
+}
+
+func (s *SessManager) Skip(channelID string) error {
+	tss := s.getSession(channelID)
+	if tss == nil {
+		return ErrNoSession
+	}
+	if !tss.Running() {
+		return ErrSessionInactive
+	}
+	tss.Pass(nil)
+	return nil
+}
+
+func (s *SessManager) Pass(channelID, userID string) error {
+	tss := s.getSession(channelID)
+	if tss == nil {
+		return ErrNoSession
+	}
+	if !tss.Running() {
+		return ErrSessionInactive
+	}
+	member, ok := getMember(tss.Active(), userID)
+	if !ok {
+		return ErrMemberNotInSession
+	}
+	tss.Pass(member)
+	return nil
+}
+
+func (s *SessManager) getSession(channelID string) session {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.tsSessions[channelID]
@@ -77,8 +134,4 @@ func (s *SessManager) delSession(channelID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.tsSessions, channelID)
-}
-
-func (s *SessManager) getSelfDestructFn(channelID string) func() {
-	return func() { s.delSession(channelID) }
 }

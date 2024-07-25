@@ -49,7 +49,15 @@ var commands = []*discordgo.ApplicationCommand{
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Name:        "pass",
-				Description: "Manually pass the talking stick to the next member",
+				Description: "Manually pass the talking stick to a user",
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Type:        discordgo.ApplicationCommandOptionUser,
+						Name:        "user",
+						Description: "Which user to pass the talking stick to",
+						Required:    false,
+					},
+				},
 			},
 		},
 	},
