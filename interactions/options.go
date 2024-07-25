@@ -23,7 +23,7 @@ func (opts RequestOptions) GetString(key string) (string, bool) {
 
 func (opts RequestOptions) GetInt(key string) (int, bool) {
 	if opt, ok := opts[key]; ok && opt.Type == discordgo.ApplicationCommandOptionInteger {
-		return int(opt.Value.(int64)), true
+		return int(opt.Value.(float64)), true
 	}
 	return -1, false
 }

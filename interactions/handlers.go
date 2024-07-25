@@ -1,14 +1,11 @@
 package interactions
 
 import (
-	"fmt"
 	"github.com/Zach51920/discord-bot/talkingstick"
 	"github.com/Zach51920/discord-bot/youtube"
 	"github.com/bwmarrin/discordgo"
 	"log/slog"
-	"math/rand"
 	"sync"
-	"time"
 )
 
 type Handlers struct {
@@ -29,7 +26,11 @@ func New(s *discordgo.Session) *Handlers {
 	}
 }
 
-func (h *Handlers) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (h *Handlers) HandleCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	if i.Type != discordgo.InteractionApplicationCommand {
+		return
+	}
+
 	h.wg.Add(1)
 	defer h.wg.Done()
 	logRequest(i)
@@ -58,127 +59,50 @@ func (h *Handlers) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) 
 	handler(s, i)
 }
 
-func (h *Handlers) Search(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	opts := NewRequestOptions(i.ApplicationCommandData().Options)
-	query, _ := opts.GetString("query")
-
-	results, err := h.ytClient.Search(query)
-	if err != nil {
-		slog.Error("failed to search youtube", "error", err)
-		return
-	}
-	embeds := mapYTSearchResults(results)
-	writeResponse(s, i, withEmbeds(embeds))
-}
-
-func (h *Handlers) Download(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	opts := NewRequestOptions(i.ApplicationCommandData().Options)
-	videoID, err := h.getVideoIDFromRequest(opts)
-	if err != nil {
-		slog.Error("failed to get videoID", "error", err)
+func (h *Handlers) HandleButtons(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	if i.Type != discordgo.InteractionMessageComponent {
 		return
 	}
 
-	video, err := h.ytClient.Download(videoID)
-	if err != nil {
-		slog.Error("failed to get video", "error", err)
-		return
+	h.wg.Add(1)
+	defer h.wg.Done()
+	customID := i.MessageComponentData().CustomID
+	slog.Info("received button press event", "custom_id", customID)
+
+	// acknowledge the request
+	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredMessageUpdate}); err != nil {
+		slog.Error("failed to respond to interaction", "error", err)
 	}
 
-	files := []*discordgo.File{mapFile(video)}
-	writeResponse(s, i, withFiles(files))
-}
-
-func (h *Handlers) Bedtime(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	opts := NewRequestOptions(i.ApplicationCommandData().Options)
-	user, _ := opts.GetUser(s)
-	role, _ := opts.GetRole(s, i)
-	reason, ok := opts.GetString("reason")
+	// get the requested action
+	actions := map[string]talkingstick.Action{
+		"talking_stick_playpause": talkingstick.ActionTogglePlayPause,
+		"talking_stick_next":      talkingstick.ActionSkipUser,
+		"talking_stick_quit":      talkingstick.ActionQuitSession,
+	}
+	action, ok := actions[customID]
 	if !ok {
-		reason = "baby raging"
-	}
-	if user == nil && role == nil {
-		writeMessage(s, i, "Invalid request, all optional parameters cannot be null.")
+		slog.Error("unknown request action", "custom_id", customID)
 		return
 	}
 
-	s.Lock()
-	defer s.Unlock()
-
-	timeout := time.Now().Add(16 * time.Hour)
-	if err := s.GuildMemberTimeout(i.GuildID, user.ID, &timeout); err != nil {
-		slog.Error("failed to timeout user", "error", err)
-		return
-	}
-
-	content := fmt.Sprintf("The user %s has been bedtime banned until %v for \"%s\".", user.Username, timeout.String(), reason)
-	if _, err := s.ChannelMessageSend(i.ChannelID, content); err != nil {
-		slog.Error("failed to send message", "error", err)
-		return
-	}
-}
-
-func (h *Handlers) CoinFlip(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	isHeads := rand.Intn(2) == 0
-	result := map[bool]struct {
-		prefix       string
-		defaultTitle string
-		optionKey    string
-		imageURL     string
-	}{
-		true: {
-			prefix:       "Heads: ",
-			defaultTitle: "The coin landed on heads",
-			optionKey:    "landed-heads",
-			imageURL:     "https://media1.tenor.com/m/9RsE4H_eUAEAAAAd/coinflip-heads.gif",
-		},
-		false: {
-			prefix:       "Tails: ",
-			defaultTitle: "The coin landed on tails",
-			optionKey:    "landed-tails",
-			imageURL:     "https://media1.tenor.com/m/C_cJS3GKhwcAAAAd/coinflip-tails.gif",
-		},
-	}[isHeads]
-
-	opts := NewRequestOptions(i.ApplicationCommandData().Options)
-	title, ok := opts.GetString(result.optionKey)
-	if ok {
-		title = result.prefix + title
-	} else {
-		title = result.defaultTitle
-	}
-
-	embed := &discordgo.MessageEmbed{
-		Type:  discordgo.EmbedTypeGifv,
-		Title: title,
-		Image: &discordgo.MessageEmbedImage{
-			URL:    result.imageURL,
-			Width:  240,
-			Height: 240,
-		},
-	}
-	writeResponse(s, i, withEmbeds([]*discordgo.MessageEmbed{embed}))
-}
-
-func (h *Handlers) getVideoIDFromRequest(opts RequestOptions) (string, error) {
-	videoID, ok := opts.GetString("url")
-	if ok {
-		return videoID, nil
-	}
-
-	query, _ := opts.GetString("query")
-	result, err := h.ytClient.Search(query)
+	// get voice channel
+	vs, err := getVoiceState(s, i.GuildID, i.Member.User.ID)
 	if err != nil {
-		return "", fmt.Errorf("search error: %w", err)
+		writeMessage(s, i, "Failed to get voice state. Are you in a voice channel?")
+		return
 	}
-	if len(result.Items) == 0 {
-		return "", fmt.Errorf("no search results found for query: %s", query)
+
+	// perform the action
+	if err = h.tsManager.Handle(vs.ChannelID, action); err != nil {
+		slog.Error("failed to perform action", "channel_id", vs.ChannelID, "error", err)
+		return
 	}
-	return result.Items[0].ID.VideoID, nil
 }
 
 func (h *Handlers) Close() error {
 	h.wg.Wait()
 	close(h.shutdownCh)
-	return nil
+	return h.tsManager.Close()
 }

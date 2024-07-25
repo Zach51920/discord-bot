@@ -29,35 +29,10 @@ var commands = []*discordgo.ApplicationCommand{
 		Description: "Manage a talking stick session in your current voice channel",
 		Options: []*discordgo.ApplicationCommandOption{
 			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "start",
-				Description: "Initiate a talking stick session in your current voice channel",
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Type:        discordgo.ApplicationCommandOptionInteger,
-						Name:        "duration",
-						Description: "Duration each user holds the talking stick (in seconds, default: 15)",
-						Required:    false,
-					},
-				},
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "end",
-				Description: "Terminate the ongoing talking stick session in your voice channel",
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "pass",
-				Description: "Manually pass the talking stick to a user",
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Type:        discordgo.ApplicationCommandOptionUser,
-						Name:        "user",
-						Description: "Which user to pass the talking stick to",
-						Required:    false,
-					},
-				},
+				Type:        discordgo.ApplicationCommandOptionInteger,
+				Name:        "duration",
+				Description: "Duration each user holds the talking stick (in seconds, default: 15)",
+				Required:    false,
 			},
 		},
 	},
@@ -93,7 +68,7 @@ var commands = []*discordgo.ApplicationCommand{
 	},
 	{
 		Name:        "bedtime-ban",
-		Description: "Handle a \"baby rager\" by putting them to bed.",
+		Description: "HandleCommand a \"baby rager\" by putting them to bed.",
 		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionUser,

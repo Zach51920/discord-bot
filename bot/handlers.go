@@ -12,7 +12,8 @@ func (b *Bot) RegisterHandlers() {
 
 	b.closers = append(b.closers, interaction, event)
 
-	b.sess.AddHandler(interaction.Handle)
+	b.sess.AddHandler(interaction.HandleCommand)
+	b.sess.AddHandler(interaction.HandleButtons)
 	b.sess.AddHandler(event.HandleMessageCreate)
 	b.sess.AddHandler(event.HandleMessageUpdate)
 	b.sess.AddHandler(event.HandleReactionAdd)
