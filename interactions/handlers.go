@@ -2,6 +2,7 @@ package interactions
 
 import (
 	"fmt"
+	"github.com/Zach51920/discord-bot/talkingstick"
 	"github.com/Zach51920/discord-bot/youtube"
 	"github.com/bwmarrin/discordgo"
 	"log/slog"
@@ -11,20 +12,21 @@ import (
 )
 
 type Handlers struct {
-	wg       sync.WaitGroup
-	ytClient *youtube.Client
-	mu       sync.Mutex
+	wg sync.WaitGroup
+	mu sync.Mutex
 
-	talkingStickChannels map[string]*TalkingStickSess
-	shutdownCh           chan struct{}
+	ytClient   *youtube.Client
+	tsManager  talkingstick.SessionManager
+	shutdownCh chan struct{}
 }
 
-func New() *Handlers {
+func New(s *discordgo.Session) *Handlers {
 	return &Handlers{
-		ytClient:             youtube.New(),
-		wg:                   sync.WaitGroup{},
-		shutdownCh:           make(chan struct{}),
-		talkingStickChannels: make(map[string]*TalkingStickSess)}
+		ytClient:   youtube.New(),
+		wg:         sync.WaitGroup{},
+		shutdownCh: make(chan struct{}),
+		tsManager:  talkingstick.NewSessionManager(s),
+	}
 }
 
 func (h *Handlers) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -48,12 +50,12 @@ func (h *Handlers) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) 
 		"coinflip":      h.CoinFlip,
 	}
 	data := i.ApplicationCommandData()
-	cmd, ok := commands[data.Name]
+	handler, ok := commands[data.Name]
 	if !ok {
 		writeMessage(s, i, "Unknown request command")
 		return
 	}
-	cmd(s, i)
+	handler(s, i)
 }
 
 func (h *Handlers) Search(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -156,21 +158,6 @@ func (h *Handlers) CoinFlip(s *discordgo.Session, i *discordgo.InteractionCreate
 		},
 	}
 	writeResponse(s, i, withEmbeds([]*discordgo.MessageEmbed{embed}))
-}
-
-func (h *Handlers) TalkingStick(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	handlers := map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
-		"start": h.talkingStickStart,
-		"pass":  h.talkingStickPass,
-		"end":   h.talkingStickEnd,
-	}
-	opts := NewRequestOptions(i.ApplicationCommandData().Options)
-	handler, exists := handlers[opts.GetSubcommand()]
-	if !exists {
-		writeMessage(s, i, fmt.Sprintf("Unknown subcommand: %s", opts.GetSubcommand()))
-		return
-	}
-	handler(s, i)
 }
 
 func (h *Handlers) getVideoIDFromRequest(opts RequestOptions) (string, error) {

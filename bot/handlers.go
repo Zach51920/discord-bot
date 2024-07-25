@@ -7,7 +7,7 @@ import (
 )
 
 func (b *Bot) RegisterHandlers() {
-	interaction := interactions.New()
+	interaction := interactions.New(b.sess)
 	event := events.New(b.sess, b.rClient, b.dbProvider.Get())
 
 	b.closers = append(b.closers, interaction, event)
