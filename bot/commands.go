@@ -25,14 +25,31 @@ var commands = []*discordgo.ApplicationCommand{
 		},
 	},
 	{
-		Name:        "talking-stick-start",
-		Description: "Initiate a talking stick session in your current voice channel",
+		Name:        "talking-stick",
+		Description: "Manage a talking stick session in your current voice channel",
 		Options: []*discordgo.ApplicationCommandOption{
 			{
-				Type:        discordgo.ApplicationCommandOptionNumber,
-				Name:        "duration",
-				Description: "How long does each user have the talking stick (seconds)",
-				Required:    false,
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "start",
+				Description: "Initiate a talking stick session in your current voice channel",
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Type:        discordgo.ApplicationCommandOptionInteger,
+						Name:        "duration",
+						Description: "Duration each user holds the talking stick (in seconds, default: 15)",
+						Required:    false,
+					},
+				},
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "end",
+				Description: "Terminate the ongoing talking stick session in your voice channel",
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "pass",
+				Description: "Manually pass the talking stick to the next member",
 			},
 		},
 	},

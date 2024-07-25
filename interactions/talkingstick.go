@@ -15,26 +15,26 @@ type linkedMember struct {
 }
 
 type TalkingStickSess struct {
-	active    *linkedMember
-	prev      *linkedMember
-	duration  time.Duration
-	channelID string
-	messages  []*discordgo.Message
-	ticker    *time.Ticker
-	mu        sync.Mutex
-	done      chan struct{}
+	active     *linkedMember
+	prev       *linkedMember
+	duration   time.Duration
+	channelID  string
+	messages   []*discordgo.Message
+	ticker     *time.Ticker
+	mu         sync.Mutex
+	shutdownCh chan struct{}
 }
 
 func NewStickSession(s *discordgo.Session, guildID, channelID string, duration time.Duration) *TalkingStickSess {
 	members := loadMembers(s, guildID, channelID)
 	shuffledMembers := newLinkedMembers(members)
 	return &TalkingStickSess{
-		active:    shuffledMembers,
-		channelID: channelID,
-		duration:  duration,
-		ticker:    time.NewTicker(duration),
-		messages:  make([]*discordgo.Message, 0),
-		done:      make(chan struct{}),
+		active:     shuffledMembers,
+		channelID:  channelID,
+		duration:   duration,
+		ticker:     time.NewTicker(duration),
+		messages:   make([]*discordgo.Message, 0),
+		shutdownCh: make(chan struct{}),
 	}
 }
 
@@ -71,7 +71,7 @@ func (tss *TalkingStickSess) Start(s *discordgo.Session) {
 	tss.PassStick(s)
 	for {
 		select {
-		case <-tss.done:
+		case <-tss.shutdownCh:
 			return
 		case <-tss.ticker.C:
 			if !tss.PassStick(s) {
@@ -85,7 +85,6 @@ func (tss *TalkingStickSess) Close(s *discordgo.Session) {
 	tss.mu.Lock()
 	defer tss.mu.Unlock()
 
-	close(tss.done)
 	tss.ticker.Stop()
 
 	if tss.prev != nil {
@@ -151,6 +150,69 @@ func newLinkedMembers(members []*discordgo.Member) *linkedMember {
 	}
 	//current.next = head //  make the list circular
 	return head
+}
+
+func (h *Handlers) talkingStickStart(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	opts := NewRequestOptions(i.ApplicationCommandData().Options)
+	turnDuration := opts.GetIntDefault("duration", 15)
+	duration := time.Duration(turnDuration) * time.Second
+
+	// get the channels active voice members
+	vs, err := getVoiceState(s, i.GuildID, i.Member.User.ID)
+	if err != nil {
+		writeMessage(s, i, "Failed to get voice state. Are you in a voice channel?")
+		return
+	}
+
+	// check if talking stick is currently being run in the requested channel
+	if h.getTalkingStickSess(vs.ChannelID) != nil {
+		writeMessage(s, i, "The talking stick is already being passed around your voice channel")
+		return
+	}
+
+	slog.Debug("creating talking stick session for channel", "channel_id", vs.ChannelID)
+	tss := NewStickSession(s, vs.GuildID, vs.ChannelID, duration)
+	go func() {
+		h.addTalkingStickSess(tss)
+		defer h.removeTalkingStickSess(tss.channelID)
+		tss.Start(s)
+	}()
+	writeMessage(s, i, "Talking stick initiated")
+}
+
+func (h *Handlers) talkingStickPass(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	vs, err := getVoiceState(s, i.GuildID, i.Member.User.ID)
+	if err != nil {
+		writeMessage(s, i, "Failed to get voice state. Are you in a voice channel?")
+		return
+	}
+
+	tss := h.getTalkingStickSess(vs.ChannelID)
+	if tss == nil {
+		writeMessage(s, i, "You're not part of a talking stick session")
+		return
+	}
+	// If there are no more members to pass the talking stick to, end the session
+	if !tss.PassStick(s) {
+		close(tss.shutdownCh)
+	}
+	writeMessage(s, i, "Passing the talking stick")
+}
+
+func (h *Handlers) talkingStickEnd(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	vs, err := getVoiceState(s, i.GuildID, i.Member.User.ID)
+	if err != nil {
+		writeMessage(s, i, "Failed to get voice state. Are you in a voice channel?")
+		return
+	}
+
+	tss := h.getTalkingStickSess(vs.ChannelID)
+	if tss == nil {
+		writeMessage(s, i, "You're not part of a talking stick session")
+		return
+	}
+	close(tss.shutdownCh)
+	writeMessage(s, i, "Terminating the talking stick")
 }
 
 func (h *Handlers) addTalkingStickSess(tss *TalkingStickSess) {

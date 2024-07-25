@@ -41,11 +41,11 @@ func (h *Handlers) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) 
 
 	// execute the command
 	commands := map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
-		"yt-download":         h.Download,
-		"yt-search":           h.Search,
-		"bedtime-ban":         h.Bedtime,
-		"talking-stick-start": h.TalkingStick,
-		"coinflip":            h.CoinFlip,
+		"yt-download":   h.Download,
+		"yt-search":     h.Search,
+		"bedtime-ban":   h.Bedtime,
+		"talking-stick": h.TalkingStick,
+		"coinflip":      h.CoinFlip,
 	}
 	data := i.ApplicationCommandData()
 	cmd, ok := commands[data.Name]
@@ -159,31 +159,18 @@ func (h *Handlers) CoinFlip(s *discordgo.Session, i *discordgo.InteractionCreate
 }
 
 func (h *Handlers) TalkingStick(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	handlers := map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
+		"start": h.talkingStickStart,
+		"pass":  h.talkingStickPass,
+		"end":   h.talkingStickEnd,
+	}
 	opts := NewRequestOptions(i.ApplicationCommandData().Options)
-	turnDuration := opts.GetIntDefault("duration", 15)
-	duration := time.Duration(turnDuration) * time.Second
-
-	// get the channels active voice members
-	vs, err := getVoiceState(s, i.GuildID, i.Member.User.ID)
-	if err != nil {
-		writeMessage(s, i, "Failed to get voice state. Are you in a voice channel?")
+	handler, exists := handlers[opts.GetSubcommand()]
+	if !exists {
+		writeMessage(s, i, fmt.Sprintf("Unknown subcommand: %s", opts.GetSubcommand()))
 		return
 	}
-
-	// check if talking stick is currently being run in the requested channel
-	if h.getTalkingStickSess(vs.ChannelID) != nil {
-		writeMessage(s, i, "The talking stick is already being passed around your voice channel")
-		return
-	}
-
-	slog.Debug("creating talking stick session for channel", "channel_id", vs.ChannelID)
-	tss := NewStickSession(s, vs.GuildID, vs.ChannelID, duration)
-	go func() {
-		h.addTalkingStickSess(tss)
-		defer h.removeTalkingStickSess(tss.channelID)
-		tss.Start(s)
-	}()
-	writeMessage(s, i, "Talking stick initiated")
+	handler(s, i)
 }
 
 func (h *Handlers) getVideoIDFromRequest(opts RequestOptions) (string, error) {
