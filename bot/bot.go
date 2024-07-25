@@ -96,7 +96,7 @@ func (b *Bot) init() error {
 		slog.Error("failed to create session", "error", err)
 		os.Exit(1)
 	}
-	//b.RegisterCommands()
+	b.RegisterCommands()
 	b.RegisterHandlers()
 	b.RegisterIntents()
 	return nil
