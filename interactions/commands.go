@@ -117,7 +117,7 @@ func (h *Handlers) TalkingStick(s *discordgo.Session, i *discordgo.InteractionCr
 	turnDuration := opts.GetIntDefault("duration", 15)
 	duration := time.Duration(turnDuration) * time.Second
 
-	// get the channels active voice members
+	// get the users active voice channel
 	vs, err := getVoiceState(s, i.GuildID, i.Member.User.ID)
 	if err != nil {
 		writeMessage(s, i, "Failed to get voice state. Are you in a voice channel?")

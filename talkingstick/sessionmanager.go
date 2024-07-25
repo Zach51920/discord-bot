@@ -87,7 +87,6 @@ func (s *SessManager) Handle(channelID string, action Action) error {
 		return fmt.Errorf("%w: %s", ErrUnknownAction, action)
 	}
 
-	slog.Debug("handling TS action", "channel_id", channelID, "action", action)
 	handler()
 	return nil
 }

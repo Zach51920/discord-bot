@@ -68,7 +68,7 @@ var commands = []*discordgo.ApplicationCommand{
 	},
 	{
 		Name:        "bedtime-ban",
-		Description: "HandleCommand a \"baby rager\" by putting them to bed.",
+		Description: "HandleC a \"baby rager\" by putting them to bed.",
 		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionUser,
