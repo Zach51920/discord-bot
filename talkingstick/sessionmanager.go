@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"log/slog"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -15,6 +16,9 @@ var (
 	ActionTogglePlayPause Action = "ts_toggle_play_pause"
 	ActionSkipUser        Action = "ts_skip_user"
 	ActionQuitSession     Action = "ts_quit_session"
+	ActionSetDuration     Action = "ts_set_duration"
+	ActionOpenSettings    Action = "ts_open_settings"
+	ActionDisplayBack     Action = "ts_display_back"
 )
 
 var ErrSessionExists = errors.New("a talking stick session already exists")
@@ -25,7 +29,7 @@ type SessionManager interface {
 	// Create a new talking stick session
 	Create(guildID, channelID string, duration time.Duration) error
 	// Handle a request action
-	Handle(channelID string, action Action) error
+	Handle(channelID string, data discordgo.MessageComponentInteractionData) error
 	// Close all running sessions. Blocks until all sessions are finished closing
 	Close() error
 }
@@ -58,16 +62,17 @@ func (s *SessManager) Create(guildID, channelID string, duration time.Duration) 
 	head := newMemberList(members)
 
 	// create a new session
-	tss := newTSSession(s.sess, channelID, duration, head)
-	if err := tss.CreateControlPanel(); err != nil {
-		return fmt.Errorf("failed to create control panel: %w", err)
+	tss, err := newTSSession(s.sess, channelID, duration, head)
+	if err != nil {
+		return fmt.Errorf("failed to create TS session: %w", err)
 	}
 	s.register(tss)
 	go s.launch(tss)
 	return nil
 }
 
-func (s *SessManager) Handle(channelID string, action Action) error {
+func (s *SessManager) Handle(channelID string, data discordgo.MessageComponentInteractionData) error {
+	action := Action(data.CustomID)
 	slog.Debug("received handle action request", "channel_id", channelID, "action", action)
 
 	tss := s.getSession(channelID)
@@ -80,6 +85,9 @@ func (s *SessManager) Handle(channelID string, action Action) error {
 		ActionQuitSession:     tss.Quit,
 		ActionSkipUser:        func() { tss.Pass(nil) },
 		ActionTogglePlayPause: s.togglePlayPauseHandler(tss),
+		ActionSetDuration:     s.setDurationHandler(tss, data),
+		ActionOpenSettings:    s.openSettingsHandler(tss),
+		ActionDisplayBack:     s.displayBackHandler(tss),
 	}
 
 	handler, ok := actions[action]
@@ -106,9 +114,42 @@ func (s *SessManager) togglePlayPauseHandler(tss *tsSession) func() {
 		} else {
 			tss.Play()
 		}
-		tss.RefreshControlPanel()
+		tss.display.Refresh()
 	}
 }
+
+func (s *SessManager) setDurationHandler(tss *tsSession, data discordgo.MessageComponentInteractionData) func() {
+	return func() {
+		if len(data.Values) == 0 {
+			slog.Warn("unable to set TS duration", "error", "duration is null")
+			return
+		}
+		duration, err := strconv.Atoi(data.Values[0])
+		if err != nil {
+			slog.Warn("unable to set TS duration", "error", err)
+			return
+		}
+
+		tss.mu.Lock()
+		tss.turnDuration = time.Duration(duration) * time.Second
+		tss.mu.Unlock()
+		tss.display.Refresh()
+	}
+}
+
+func (s *SessManager) openSettingsHandler(tss *tsSession) func() {
+	return func() {
+		tss.display.Set(DisplayTSSettings)
+		tss.display.Refresh()
+	}
+}
+func (s *SessManager) displayBackHandler(tss *tsSession) func() {
+	return func() {
+		tss.display.Set(tss.display.prevDisplay)
+		tss.display.Refresh()
+	}
+}
+
 func (s *SessManager) getSession(channelID string) *tsSession {
 	s.mu.Lock()
 	defer s.mu.Unlock()

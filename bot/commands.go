@@ -35,6 +35,7 @@ var commands = []*discordgo.ApplicationCommand{
 				Required:    false,
 			},
 		},
+		Version: "1.0.1",
 	},
 	{
 		Name:        "yt-download",

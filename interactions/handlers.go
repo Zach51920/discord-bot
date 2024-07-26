@@ -75,18 +75,6 @@ func (h *Handlers) HandleButtons(s *discordgo.Session, i *discordgo.InteractionC
 		slog.Error("failed to respond to interaction", "error", err)
 	}
 
-	// get the requested action
-	actions := map[string]talkingstick.Action{
-		"talking_stick_playpause": talkingstick.ActionTogglePlayPause,
-		"talking_stick_next":      talkingstick.ActionSkipUser,
-		"talking_stick_quit":      talkingstick.ActionQuitSession,
-	}
-	action, ok := actions[customID]
-	if !ok {
-		slog.Error("unknown request action", "custom_id", customID)
-		return
-	}
-
 	// get voice channel
 	vs, err := getVoiceState(s, i.GuildID, i.Member.User.ID)
 	if err != nil {
@@ -95,7 +83,7 @@ func (h *Handlers) HandleButtons(s *discordgo.Session, i *discordgo.InteractionC
 	}
 
 	// perform the action
-	if err = h.tsManager.Handle(vs.ChannelID, action); err != nil {
+	if err = h.tsManager.Handle(vs.ChannelID, i.MessageComponentData()); err != nil {
 		slog.Error("failed to perform action", "channel_id", vs.ChannelID, "error", err)
 		return
 	}

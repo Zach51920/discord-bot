@@ -21,12 +21,13 @@ type tsSession struct {
 
 	stickholder *tsMember
 
-	embed *discordgo.Message
-	sess  *discordgo.Session
+	embed   *discordgo.Message
+	sess    *discordgo.Session
+	display *ControlPanel
 }
 
-func newTSSession(s *discordgo.Session, channelID string, duration time.Duration, head *tsMember) *tsSession {
-	return &tsSession{
+func newTSSession(s *discordgo.Session, channelID string, duration time.Duration, head *tsMember) (*tsSession, error) {
+	tss := &tsSession{
 		staleTimer:   time.NewTimer(15 * time.Minute),
 		ticker:       time.NewTicker(duration),
 		startTime:    time.Now(),
@@ -40,6 +41,9 @@ func newTSSession(s *discordgo.Session, channelID string, duration time.Duration
 		embed:        nil,
 		sess:         s,
 	}
+	panel, err := NewControlPanel(tss)
+	tss.display = panel
+	return tss, err
 }
 
 func (tss *tsSession) Start() {
@@ -85,28 +89,32 @@ func (tss *tsSession) Pass(target *tsMember) {
 	}
 
 	// update the control panel
-	tss.RefreshControlPanel()
+	tss.display.Refresh()
 	tss.resetTicker()
 }
 
 func (tss *tsSession) Pause() {
 	tss.mu.Lock()
-	defer tss.mu.Unlock()
 	if tss.isRunning {
 		slog.Debug("pausing TS session", "channel_id", tss.channelID)
 		tss.isRunning = false
-		tss.ticker.Stop()
+		tss.ticker.Reset(time.Hour)
 	}
+	tss.mu.Unlock()
+	tss.display.Set(DisplayTSPause)
+	tss.display.Refresh()
 }
 
 func (tss *tsSession) Play() {
 	tss.mu.Lock()
-	defer tss.mu.Unlock()
 	if !tss.isRunning {
 		slog.Debug("resuming TS session", "channel_id", tss.channelID)
 		tss.isRunning = true
 		tss.resetTicker()
 	}
+	tss.mu.Unlock()
+	tss.display.Set(DisplayTSActive)
+	tss.display.Refresh()
 }
 
 func (tss *tsSession) Quit() {
@@ -129,9 +137,8 @@ func (tss *tsSession) Close() {
 	}
 
 	// remove all buttons from the control panel
-	if err := tss.DecommissionControlPanel(); err != nil {
-		slog.Error("failed to decommission the tss control panel", "channel_id", tss.channelID, "error", err)
-	}
+	tss.display.Set(DisplayTSDecommissioned)
+	tss.display.Refresh()
 }
 
 func (tss *tsSession) Running() bool {
